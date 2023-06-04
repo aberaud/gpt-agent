@@ -16,4 +16,5 @@ RUN adduser \
     "$USER"
 USER $USER
 WORKDIR /project
+EXPOSE 8080
 CMD ["python", "/app/agent.py"]

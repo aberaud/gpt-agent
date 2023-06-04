@@ -11,6 +11,10 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 from chat import ChatSession
 import datetime
 
+import aiohttp
+from aiohttp import web
+
+
 system_prompt_syntax = f'date: "{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}"' + """
 instructions: |
   Always communicate in valid YAML format, directly and without any other introduction, comment or text.
@@ -168,12 +172,53 @@ async def execute_chat(chat_session):
     chat_session.add_message('main_task: ' + input("Main task: "))
     await agent(chat_session)
 
+connected_clients: set[web.WebSocketResponse] = set()
+cached_result = None
+
+async def send_to_client(socket: web.WebSocketResponse, input):
+    try:
+        await socket.send_json(input)
+    except Exception as e:
+        print(f'Error sending to client: {e}')
+
+async def websocket_handler(request: web.Request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    print(f'WebSocket connection with {request.remote} ({" ".join(request.headers["User-Agent"].split()[-2:])}) opened')
+
+    # Send initial cached data
+    if cached_result:
+        await send_to_client(ws, *cached_result)
+    connected_clients.add(ws)
+
+    async for msg in ws:
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            if msg.data == 'close':
+                await ws.close()
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            print(f'WebSocket connection with {request.remote} closed with exception {ws.exception()}')
+    connected_clients.remove(ws)
+    print(f'WebSocket connection with {request.remote} closed')
+    return ws
+
+async def index(request):
+    return web.FileResponse('/app/index.html')
+
+async def main(args):
+    chat_session = ChatSession(args.model, system_prompt)
+
+    app = web.Application()
+    app.add_routes([web.get('/', index)])
+    app.add_routes([web.get('/ws', websocket_handler)])
+
+    await asyncio.gather(
+        web._run_app(app),
+        execute_chat(chat_session),
+    )
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Interact with the chat session using a CLI.")
     parser.add_argument("-m", "--model", default="gpt-4", help="Specify the model to use (default: gpt-4).")
     args = parser.parse_args()
-
-    chat_session = ChatSession(args.model, system_prompt)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(execute_chat(chat_session))
+    asyncio.run(main(args))
