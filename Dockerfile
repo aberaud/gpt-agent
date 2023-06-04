@@ -1,0 +1,19 @@
+FROM alpine:3.18
+
+RUN apk add --no-cache \
+        git wget python3 py3-pip
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+ENV USER=agent
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home /project \
+    "$USER"
+USER $USER
+WORKDIR /project
+CMD ["python", "/app/agent.py"]
