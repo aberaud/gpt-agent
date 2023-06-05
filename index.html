@@ -29,6 +29,8 @@ const getIcon = type => {
         case 'assign': return 'bi-diagram-3-fill'
         case 'parse_error':
         case 'error': return 'bi-exclamation-circle-fill'
+        case 'task':
+        case 'main_task': return 'bi-journal-check'
         default: return 'bi-chat-left-dots-fill'
     }
 }
@@ -39,19 +41,31 @@ const getMessage = content => {
         case 'complete':
         case 'parse_error':
         case 'error':
-        case 'request': return content.message
-        case 'command': return jsyaml.dump(content.command)
-        case 'write': return content.content
+        case 'request':
+        case 'reply': return content.message
+        case 'command': return `<pre>${content.command}</pre>`
+        case 'write': return `<b>${content.file}</b><pre>${content.content}</pre>`
+        case 'main_task': return `${content.task}`
+        case 'task': return `<b>${content.instructions}</b> ${content.task}`
         case 'assign': return `<b>${content.id}</b> ${content.task}`
-        default: return jsyaml.dump(content)
+        default: return `<pre>${jsyaml.dump(content)}</pre>`
     }
 }
 
 const parseMessage = message => {
     try {
-        return jsyaml.load(message)
+        const msg = jsyaml.load(message)
+        if (!msg.type) {
+            if ('stdout' in msg || 'stderr' in msg) {
+                msg.type = 'command'
+                msg.command = msg.stdout || msg.stderr
+            } else if (msg.instructions && !msg.purpose) {
+                msg.type = 'task'
+            }
+        }
+        return msg
     } catch (e) {
-        return { content: { type: 'parse_error', message: message } }
+        return { type: 'parse_error', message: message }
     }
 }
 
@@ -94,14 +108,15 @@ const inputBox = (id, msg) => `<form onsubmit="return onSubmit(event, '${id}')">
 
 const new_websocket = (dispatch) => {
     const container = document.getElementById('main-content')
+    const loader = document.getElementById('loader')
     const textMsg = document.getElementById('main-title')
     const ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws`)
     ws.binaryType = "blob"
     ws.onopen = () => {
-        textMsg.textContent = 'Running...'
+        textMsg.textContent = 'Connected'
         loader.remove()
     }
-    ws.onclose = () => textMsg.textContent = 'Disconnected...'
+    ws.onclose = () => textMsg.textContent = 'Disconnected'
     ws.onerror = (e) => console.log(e)
     ws.onmessage = (m) => {
         try {
@@ -133,11 +148,15 @@ const new_websocket = (dispatch) => {
                     //data.agents[data.agents.length - 1].messages.push(data.message)
                     loader.remove()
                     const lastAgent = data.agents[data.agents.length - 1]
+                    textMsg.textContent = `Agent running: ${lastAgent.id}`
                     const card = document.getElementById(`agent-${lastAgent.id}`)
                     if (card) {
                         const header = card.querySelector('.card-header')
                         header.appendChild(loader)
                     }
+                } else if (data.state == 'completed') {
+                    textMsg.textContent = 'Completed'
+                    loader.remove()
                 }
             }
         } catch (e) {
@@ -149,7 +168,7 @@ const new_websocket = (dispatch) => {
 }
     </script>
 </head>
-<body style="background-color:#eee">
+<body class="bg-dark-subtle">
     <header>
         <div id="searchbar" class="container">
             <h1 id="main-title">Connecting...</h1>
@@ -164,7 +183,6 @@ const new_websocket = (dispatch) => {
     </div>
     <script>
 const ws = new_websocket()
-const loader = document.getElementById('loader')
     </script>
 </body>
 </html>

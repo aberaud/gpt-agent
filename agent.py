@@ -26,7 +26,7 @@ instructions: |
       {"type": "request", "message": "should we use rust or go?"}
   * Assign a subtask to another agent. Provide a detailed description of the task and an id.
       {"type": "assign", "id": "create", "task": "create the initial project structure"}
-  * Run a command and get the output:
+  * Run one or more bash commands and get the output:
       {"type": "command", "command": "ls -la"}
      or: 
       type: command
@@ -34,7 +34,7 @@ instructions: |
         - mkdir project
         - cd project
         - git init
-  * Notify task completion:
+  * Notify task completion. The parent agent will be provided a corresponding 'completed' message.
       {"type": "complete", "message": "empty repo created"}
 """
 
@@ -45,10 +45,10 @@ purpose: You are an autonomous agent whose purpose is to solve a long-term task 
 """ + system_prompt_syntax
 
 system_prompt_subagent = """
-purpose: You are an autonomous agent whose purpose is to help solving a long-term task provided by a human supervisor.
-  Your goal is to complete a subtask provided to you by another agent.
-  Analyse the main task and the subtask that you have been assigned,
-  complete the subtask yourself or break it down into smaller subtasks that can be solved by other agents.
+purpose: You are an autonomous agent whose purpose is to help solving a long-term goal provided by a human supervisor.
+  Your objective is to complete a task provided to you by another agent.
+  Analyse the long-term goal and the task that you have been assigned,
+  complete the task yourself or break it down into smaller tasks that can be solved by other agents.
 """ + system_prompt_syntax
 
 class Agent:
@@ -58,18 +58,20 @@ class Agent:
         self.web_server = web_server
         print(f"Agent {name} ({chat_session.model}) created")
 
+    async def send_update(self):
+        if self.web_server:
+            await self.web_server.send_state({
+                'state': 'running',
+                'agents': [{
+                    'id': self.name,
+                    'messages': self.chat_session.messages
+                }]
+            })
+
     async def run(self):
         while True:
             try:
-                if self.web_server:
-                    await self.web_server.send_state({
-                        'state': 'running',
-                        'agents': [{
-                            'id': self.name,
-                            'messages': self.chat_session.messages
-                        }]
-                    })
-
+                await self.send_update()
                 print(f"Agent {self.name} running...")
                 response = await self.chat_session.chat()
                 try:
@@ -92,6 +94,7 @@ class Agent:
             except KeyboardInterrupt:
                 print("\nExiting.")
                 break
+        await self.send_update()
         print(f"Agent {self.name} ended")
 
     async def handle_agent_command(self, command):
@@ -106,16 +109,21 @@ class Agent:
                 'message': command['message']
             })
             self.chat_session.add_message(yaml.dump({
-                "reply": user_input
+                "type": "reply",
+                "message": user_input
             }))
         elif type == "assign":
-            print(f"[ASSIGN] {command['id']} {command['task']}")
+            sub_agent_id=command['id']
+            print(f"[ASSIGN] {sub_agent_id} {command['task']}")
+            await self.send_update()
             sub_chat_session = ChatSession(self.chat_session.model, system_prompt_subagent)
-            sub_chat_session.messages += self.chat_session.messages[1:]
+            sub_chat_session.messages += self.chat_session.messages[1:-1]
             sub_chat_session.add_message(yaml.dump({
-                'subtask': command['task']
-            }))
-            sub_agent = Agent(sub_chat_session, web_server=self.web_server, name=command['id'])
+                "instructions": f"You are now {sub_agent_id}. Complete your task.",
+                #"date": datetime.datetime.now(),
+                'task': command['task']
+            }), "system")
+            sub_agent = Agent(sub_chat_session, web_server=self.web_server, name=sub_agent_id)
             await sub_agent.run()
             last_msg = sub_chat_session.messages[-1].content
             try:
@@ -196,10 +204,15 @@ async def execute_chat(chat_session, web_server):
     })
     print(f"Main task: {main_task}")
     chat_session.add_message(yaml.dump({
-        "main_task": main_task
+        "type": "main_task",
+        "task": main_task
     }))
     agent = Agent(chat_session, web_server=web_server)
     await agent.run()
+    await web_server.send_state({
+        'state': 'completed'
+    })
+    print("Completed")
 
 
 async def main(args):
