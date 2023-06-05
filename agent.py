@@ -4,6 +4,7 @@ import datetime
 import yaml
 from chat import ChatSession
 from web_server import WebServer
+from search import search
 
 system_prompt_syntax = f'date: "{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}"' + """
 instructions: |
@@ -16,6 +17,8 @@ instructions: |
       message: |
         this is some
         multiline information
+  * Lookup for information. Available sources: knowledge-graph, wikipedia, google
+      {"type": "query", "source":"knowledge-graph", "query": "Paris"}
   * Write to a file:
       type: write
       file: file.txt
@@ -141,6 +144,18 @@ class Agent:
                     "id": command['id'],
                     "message": last_msg
                 }))
+
+        elif type == "query":
+            source = command['source']
+            query = command['query']
+            print(f"[QUERY] {source} {query}")
+            results = await search(query, source=source)
+            self.chat_session.add_message(yaml.dump({
+                "type": "results",
+                #"source": source,
+                #"query": query,
+                "results": results
+            }), "system")
 
         elif type == "command": 
             shell_command = command['command']
