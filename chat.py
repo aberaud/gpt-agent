@@ -1,6 +1,10 @@
 from typing import Optional
+import os
+from dotenv import load_dotenv
 import openai
-
+load_dotenv()
+openai.organization = os.getenv("OPENAI_ORG_ID")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class ChatSession:
     def __init__(self, model: str='gpt-4', system_prompt: Optional[str]=None):
