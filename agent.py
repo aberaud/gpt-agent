@@ -216,7 +216,7 @@ class Agent:
     def convert_message_for_subagent(self, message):
         #print('convert_message_for_subagent', message)
         msg = Agent.parse_message(message['content'])
-        if msg is None or msg['type'] == 'parse_error':
+        if msg is None or msg.get('type') == 'parse_error':
             return None
         if message['role'] == 'system' and msg['type'] == 'task':
             return {

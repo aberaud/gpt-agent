@@ -70,6 +70,7 @@ const getIcon = content => {
         case 'task':
         case 'main_task': return 'bi-journal-check'
         case 'query': return 'bi-search'
+        case 'file': return content.success ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
         default: return 'bi-chat-left-dots-fill'
     }
 }
@@ -88,6 +89,7 @@ const getMessage = content => {
         case 'task': return `<b>${content.instructions}</b> ${content.task}`
         case 'assign': return `<b>${content.id}</b> ${content.task}`
         case 'query': return `<b>${content.source}</b> ${content.query}`
+        case 'file': return content.success ? `<b>${content.file}</b>` : `<b>${content.file}</b> ${content.error}`
         default: return `<pre>${jsyaml.dump(content)}</pre>`
     }
 }
@@ -101,6 +103,8 @@ const parseMessage = message => {
                 msg.command = msg.stdout || msg.stderr
             } else if (msg.instructions && !msg.purpose) {
                 msg.type = 'task'
+            } else if (msg.file) {
+                msg.type = 'file'
             }
         }
         console.log(msg)
