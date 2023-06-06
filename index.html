@@ -18,11 +18,11 @@ const getClass = role => {
         default: return ''
     }
 }
-const getIcon = type => {
-    switch (type) {
+const getIcon = content => {
+    switch (content.type) {
         case 'info': return 'bi-info-circle-fill'
-        case 'completed': return 'bi-check-circle'
-        case 'complete': return 'bi-check-circle-fill'
+        case 'completed': return content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle text-danger'
+        case 'complete': return content.status == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
         case 'request': return 'bi-question-circle-fill'
         case 'command': return 'bi-terminal-fill'
         case 'write': return 'bi-pencil-fill'
@@ -31,6 +31,7 @@ const getIcon = type => {
         case 'error': return 'bi-exclamation-circle-fill'
         case 'task':
         case 'main_task': return 'bi-journal-check'
+        case 'query': return 'bi-search'
         default: return 'bi-chat-left-dots-fill'
     }
 }
@@ -43,11 +44,12 @@ const getMessage = content => {
         case 'error':
         case 'request':
         case 'reply': return content.message
-        case 'command': return `<pre>${content.command}</pre>`
+        case 'command': return Array.isArray(content.command) ? content.command.map(c => `<pre>${c}</pre>`).join('\n')  : `<pre>${content.command || ''}</pre>`
         case 'write': return `<b>${content.file}</b><pre>${content.content}</pre>`
-        case 'main_task': return `${content.task}`
+        case 'main_task': return `<b>${content.task}</b>`
         case 'task': return `<b>${content.instructions}</b> ${content.task}`
         case 'assign': return `<b>${content.id}</b> ${content.task}`
+        case 'query': return `<b>${content.source}</b> ${content.query}`
         default: return `<pre>${jsyaml.dump(content)}</pre>`
     }
 }
@@ -139,6 +141,7 @@ const new_websocket = (dispatch) => {
                         card = addResult(container, { id: data.id, messages: [] })
                         container.prepend(card)
                     }
+                    textMsg.textContent = `Waiting for human input: ${data.id}`
                     const header = card.querySelector('.card-header')
                     header.innerHTML = `<h5 class="card-title">${data.id}</h5>${inputBox(data.id, data.message)}`
                         /*<div class="spinner-border spinner-border-sm text-primary" role="status">
@@ -171,7 +174,7 @@ const new_websocket = (dispatch) => {
 <body class="bg-dark-subtle">
     <header>
         <div id="searchbar" class="container">
-            <h1 id="main-title">Connecting...</h1>
+            <h1 id="main-title" class="display-5">Connecting...</h1>
             <div id="loader" class="spinner-border" role="status">
                 <span class="visually-hidden">Loading...</span>
               </div>
