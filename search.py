@@ -45,6 +45,9 @@ def search(query, source='google'):
         return get_search_data(query)
     elif source == 'knowledge-graph':
         return get_kg_data(query)
+    else:
+        print(f"Unknown source: {source}")
+        return get_search_data(f"{query} {source}")
 
 
 if __name__ == "__main__":
