@@ -210,20 +210,18 @@ class Agent:
         try:
             return yaml.safe_load(message)
         except yaml.YAMLError as e:
-            #print(f"[PARSE ERROR] Couldn't parse agent's message: {message}", e)
             return None
 
     def convert_message_for_subagent(self, message):
-        #print('convert_message_for_subagent', message)
         msg = Agent.parse_message(message['content'])
         if msg is None or msg.get('type') == 'parse_error':
             return None
-        if message['role'] == 'system' and msg['type'] == 'task':
+        if message['role'] == 'system' and msg.get('type') == 'task':
             return {
                 'role': 'assistant',
                 'content': yaml.dump({
                     'type': 'assign',
-                    'task': msg['task'],
+                    'task': msg.get('task'),
                     'id': self.name
                 })
             }
@@ -240,7 +238,7 @@ class Agent:
         print(f"[ASSIGN] {sub_agent_id} {task}")
         await self.send_update()
         sub_chat_session = ChatSession(self.chat_session.model, getSystemPrompt('subagent'))
-        sub_chat_session.messages += self.convert_history_for_subagent()#self.chat_session.messages[1:-1]
+        sub_chat_session.messages += self.convert_history_for_subagent()
         sub_chat_session.add_message(yaml.dump({
             "type": "task",
             "instructions": f"You are now the Agent '{sub_agent_id}'. Complete your task.",
@@ -316,7 +314,7 @@ async def main(args):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Interact with the chat session using a CLI.")
+    parser = argparse.ArgumentParser(description="Start the Argent server.")
     parser.add_argument("-m", "--model", default="gpt-4", help="Specify the model to use (default: gpt-4).")
     args = parser.parse_args()
     asyncio.run(main(args))
