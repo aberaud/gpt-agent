@@ -8,7 +8,45 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js" integrity="sha512-CSBhVREyzHAjAFfBlIBakjoRUKp5h7VSweP0InR/pAJyptH7peuhCsqAI/snV+TwZmXZqoUklpXp6R6wMnYf5Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
-    </style>
+body {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: hidden;
+  display: flex;
+  overflow-x: auto; /* Enable horizontal scrolling for the cards container */
+  white-space: nowrap; /* Prevent cards from wrapping to the next line */
+}
+.agent-container {
+    width: calc(576px - 3rem);
+    min-width: calc(576px - 3rem);
+    margin-left: .5rem;
+    margin-right: .5rem;
+}
+@media (max-width: 576px) {
+    .agent-container {
+        width: calc(100% - 1rem);
+        min-width: calc(100% - 1rem);
+    }
+}
+.agent {
+    max-height: 100%;
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+}
+.messages {
+    flex: 1;
+    overflow-y: auto;
+}
+    </style>    
     <script>
 const getClass = role => {
     switch (role) {
@@ -79,15 +117,15 @@ const messageRow = (message, content) =>
     </li>`
 
 const agentCard = agent =>
-    `<div class="card mb-3 agent" id="agent-${agent.id}">
+    `<div class="card agent" id="agent-${agent.id}">
         <div class="card-header"><h5 class="card-title">${agent.id}</h5></div>
-        <ul class="list-group list-group-flush">
+        <ul class="messages list-group list-group-flush">
             ${agent.messages.reverse().map(message => messageRow(message, parseMessage(message.content))).join('\n')}
         </ul>
     </div>`
 const addResult = (container, agent) => {
     const card = document.createElement('div')
-    card.classList.add('col-sm-3')
+    card.classList.add('agent-container')
     card.innerHTML = agentCard(agent)
     container.insertBefore(card, container.firstChild)
     card.animate([{ opacity: 0, transform: 'scale(.8)', width: '80px' }, {}],
@@ -182,9 +220,7 @@ const new_websocket = (dispatch) => {
             
         </div>
     </header>
-    <div class="container-fluid">
-        <div id="main-content" class="row"></div>
-    </div>
+    <div class="content" id="main-content"></div>
     <script>
 const ws = new_websocket()
     </script>
