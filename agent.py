@@ -5,8 +5,9 @@ import traceback
 from typing import Optional
 import yaml
 from chat import ChatSession
-from web_server import WebServer
+from web_server import WebServer, Session
 from search import search
+from asyncio import CancelledError, Queue
 
 purpose_agent = """You are an autonomous agent whose purpose is to acheive a long-term goal provided by a human supervisor.
 Analyse the goal and break it down into smaller subtasks that can be solved by other agents, until the goal is acheived.
@@ -71,13 +72,13 @@ def getSystemPrompt(type='agent'):
     })
 
 class Agent:
-    def __init__(self, chat_session: ChatSession, web_server: WebServer, name: str = "main", parent: Optional['Agent']=None):
+    def __init__(self, chat_session: ChatSession, web_server: Session, name: str = "main", parent: Optional['Agent']=None):
         self.chat_session = chat_session
         self.name = name
         self.web_server = web_server
         self.parent = parent
         self.supervisor_path = ['human'] if parent is None else parent.supervisor_path + [parent.name]
-        print(f"Agent {name} ({chat_session.model}) created")
+        self.stopped = False
 
     async def send_update(self):
         if self.web_server:
@@ -90,8 +91,12 @@ class Agent:
                 }]
             })
 
+    async def stop(self):
+        self.stopped = True
+
     async def run(self):
-        while True:
+        print(f"Agent {self.name} ({self.chat_session.model}) created")
+        while not self.stopped:
             try:
                 await self.send_update()
                 print(f"Agent {self.name} running...")
@@ -108,6 +113,8 @@ class Agent:
                         "message": f"YAMLError: {e}",
                         "hint": "Make sure you are using valid YAML format. Careful with multiline strings."
                     }), "system")
+                except CancelledError:
+                    break
                 except Exception as e:
                     print(f"[ERROR] Couldn't handle agent's message: {response}")
                     print(traceback.format_exc())
@@ -115,11 +122,25 @@ class Agent:
                         "type": "error",
                         "message": str(e)
                     }), "system")
+            except CancelledError:
+                break
             except KeyboardInterrupt:
                 print("\nExiting.")
                 break
         await self.send_update()
         print(f"Agent {self.name} ended")
+
+    async def get_human_input(self, message, reply_type="reply"):
+        user_input = await self.web_server.get_input({
+            'state': 'request',
+            'id': self.name,
+            'message': message
+        })
+        print(f"{message}: {user_input}")
+        self.chat_session.add_message(yaml.dump({
+            "type": reply_type,
+            "task": user_input
+        }))
 
     async def handle_agent_command(self, command):
         type = command["type"]
@@ -129,15 +150,7 @@ class Agent:
             request = command['message']
             to = command['to']
             print(f"[REQUEST] for {to}: {request}")
-            user_input = await self.web_server.get_input({
-                'state': 'request',
-                'id': self.name,
-                'message': command['message']
-            })
-            self.chat_session.add_message(yaml.dump({
-                "type": "reply",
-                "message": user_input
-            }))
+            await self.get_human_input(request)
         elif type == "assign":
             await self.handle_agent_assign(command)
 
@@ -262,32 +275,42 @@ class Agent:
         except Exception as e:
             print(f"[ERROR] Failed to run the command: {e}")
 
+async def agent_worker(task_queue: Queue):
+    while True:
+        try :
+            task = await task_queue.get()
+            if task is None:
+                break
+            await asyncio.gather(task)
+        except CancelledError:
+            break
+        except Exception as e:
+            print(f'Error in worker: {e}')
 
-async def execute_chat(chat_session, web_server):
-    main_task = await web_server.get_input({
-        'state': 'request',
-        'id': 'main',
-        'message': "Main task"
-    })
-    print(f"Main task: {main_task}")
-    chat_session.add_message(yaml.dump({
-        "type": "main_task",
-        "task": main_task
-    }))
-    agent = Agent(chat_session, web_server=web_server)
-    await agent.run()
-    await web_server.send_state({
+task_queue = Queue()
+
+async def add_agent(args, session: Session):
+    print(f"add_agent")
+    session.task = asyncio.create_task(execute_chat(args, session))
+    await task_queue.put(session.task)
+
+async def execute_chat(args, session: Session):
+    print(f"execute_chat")
+    chat_session = ChatSession(args.model, getSystemPrompt())
+    session.agent = Agent(chat_session, web_server=session)
+    await session.agent.get_human_input("Main task", "main_task")
+    await session.agent.run()
+    await session.send_state({
         'state': 'completed'
     })
     print("Completed")
 
 
 async def main(args):
-    chat_session = ChatSession(args.model, getSystemPrompt())
-    web_server = WebServer()
+    web_server = WebServer(args, add_agent)
     await asyncio.gather(
         web_server.run(),
-        execute_chat(chat_session, web_server),
+        asyncio.create_task(agent_worker(task_queue))
     )
 
 if __name__ == "__main__":
