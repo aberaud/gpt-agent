@@ -9,19 +9,22 @@ from web_server import WebServer, Session
 from search import search
 from asyncio import CancelledError, Queue
 
-purpose_agent = """You are an autonomous agent whose purpose is to acheive a long-term goal provided by a human supervisor.
-Analyse the goal and break it down into smaller subtasks that can be solved by other agents, until the goal is acheived.
+purpose_agent = """You are an autonomous agent whose purpose is to achieve a long-term goal provided by a human supervisor.
+Analyze the goal and break it down into smaller subtasks that can be solved by other agents, until the goal is achieved.
+Take time to think and inspect your environment before acting.
 Always check the result of your work and the work of other agents."""
 
-purpose_subagent = """You are an autonomous agent whose purpose is to help acheiving a long-term goal provided by a human supervisor.
+purpose_subagent = """You are an autonomous agent whose purpose is to help achieve a long-term goal provided by a human supervisor.
 Your objective is to complete a task provided to you by another agent.
-Analyse the long-term goal and the task that you have been assigned,
+Analyze the long-term goal and the task that you have been assigned,
 complete the task yourself or break it down into smaller tasks to be solved by other agents.
+Take time to think and inspect your environemnt before acting.
 Always check the result of your work and the work of other agents.
 After you complete, only your completion message will be preserved, along with any change you made to the system.
 """
 
 instructions = """Always communicate in valid YAML format, directly and without any other introduction, comment or text.
+You are running in a simple Alpine Linux container, in the project directory.
 Always only output a single action to take (you will have the opportunity for more actions later), one of:
 * Note information for future reference:
     {"type": "info", "message": "this is some information"}
@@ -53,7 +56,7 @@ Always only output a single action to take (you will have the opportunity for mo
         - cd project && git init
 * Notify task completion (either success or failure), proving your supervisor with a corresponding 'completed' message.
    Provide all relevent information about what you did in the message. If you are stuck in a loop, complete with failure.
-    {"type": "complete", "status": "success", "message": "empty repo created"}
+    {"type": "complete", "status": "success", "message": "empty repo created in directory 'project'"}
 """
 
 
@@ -290,12 +293,10 @@ async def agent_worker(task_queue: Queue):
 task_queue = Queue()
 
 async def add_agent(args, session: Session):
-    print(f"add_agent")
     session.task = asyncio.create_task(execute_chat(args, session))
     await task_queue.put(session.task)
 
 async def execute_chat(args, session: Session):
-    print(f"execute_chat")
     chat_session = ChatSession(args.model, getSystemPrompt())
     session.agent = Agent(chat_session, web_server=session)
     await session.agent.get_human_input("Main task", "main_task")
