@@ -42,10 +42,10 @@ const getMessage = content => {
         case 'complete':
         case 'parse_error':
         case 'error':
-        case 'request':
-        case 'reply': return content.message
+        case 'request': return content.message
         case 'command': return Array.isArray(content.command) ? content.command.map(c => `<pre>${c}</pre>`).join('\n')  : `<pre>${content.command || ''}</pre>`
         case 'write': return `<b>${content.file}</b><pre>${content.content}</pre>`
+        case 'reply':
         case 'main_task': return `<b>${content.task}</b>`
         case 'task': return `<b>${content.instructions}</b> ${content.task}`
         case 'assign': return `<b>${content.id}</b> ${content.task}`
@@ -65,6 +65,7 @@ const parseMessage = message => {
                 msg.type = 'task'
             }
         }
+        console.log(msg)
         return msg
     } catch (e) {
         return { type: 'parse_error', message: message }
@@ -73,7 +74,7 @@ const parseMessage = message => {
 
 const messageRow = (message, content) =>
     `<li class="list-group-item message ${getClass(message.role)}">
-        <i class="${getIcon(content.type)} flex-shrink-0 me-2"></i>
+        <i class="${getIcon(content)} flex-shrink-0 me-2"></i>
         ${getMessage(content)}
     </li>`
 

@@ -8,14 +8,16 @@ from chat import ChatSession
 from web_server import WebServer
 from search import search
 
-purpose_agent = """You are an autonomous agent whose purpose is to solve a long-term task provided by a human supervisor.
-Your goal is to analyse the problem and break it down into smaller subtasks that can be solved by other agents, until the task is complete.
-Always double check your work and the work of other agents."""
+purpose_agent = """You are an autonomous agent whose purpose is to acheive a long-term goal provided by a human supervisor.
+Analyse the goal and break it down into smaller subtasks that can be solved by other agents, until the goal is acheived.
+Always check the result of your work and the work of other agents."""
 
-purpose_subagent = """You are an autonomous agent whose purpose is to solve a long-term task provided by a human supervisor.
-Your goal is to analyse the problem and break it down into smaller subtasks that can be solved by other agents, until the task is complete.
-Always double check your work and the work of other agents.
-After you complete, your history will be lost and only our completion message will be preserved, along with any change made to the system.
+purpose_subagent = """You are an autonomous agent whose purpose is to help acheiving a long-term goal provided by a human supervisor.
+Your objective is to complete a task provided to you by another agent.
+Analyse the long-term goal and the task that you have been assigned,
+complete the task yourself or break it down into smaller tasks to be solved by other agents.
+Always check the result of your work and the work of other agents.
+After you complete, only your completion message will be preserved, along with any change you made to the system.
 """
 
 instructions = """Always communicate in valid YAML format, directly and without any other introduction, comment or text.
@@ -35,7 +37,7 @@ Always only output a single action to take (you will have the opportunity for mo
     content: |
         this is some
         multiline file content
-* Ask for more information to a supervisor (human or supervisor agent) - don't assign tasks or report status that way:
+* Ask for more information to a supervisor (human or supervisor agent) - don't assign tasks or report status with this command:
     {"type": "request", "to": "human", "message": "should we use rust or go?"}
 * Assign a subtask to another agent. Provide a detailed description of the task and an id.
     {"type": "assign", "id": "create", "task": "create the initial project structure"}
@@ -48,8 +50,8 @@ Always only output a single action to take (you will have the opportunity for mo
     command:
         - mkdir project
         - cd project && git init
-* Notify task completion (either success or failure). The parent agent will be provided a corresponding 'completed' message.
-  If you are stuck in a failure loop, complete and notify the parent agent.
+* Notify task completion (either success or failure), proving your supervisor with a corresponding 'completed' message.
+   Provide all relevent information about what you did in the message. If you are stuck in a loop, complete with failure.
     {"type": "complete", "status": "success", "message": "empty repo created"}
 """
 
@@ -149,7 +151,7 @@ class Agent:
                 #"source": source,
                 #"query": query,
                 "results": results
-            }), "system")
+            }), "user")
 
         elif type == "command": 
             shell_command = command['command']
@@ -171,14 +173,14 @@ class Agent:
                 self.chat_session.add_message(yaml.dump({
                     "file": file_name,
                     "success": True
-                }), "system")
+                }), "user")
                 print(f"[SUCCESS] Successfully wrote to file {file_name}")
             except Exception as e:
                 self.chat_session.add_message(yaml.dump({
                     "file": file_name,
                     "success": False,
                     "error": str(e),
-                }), "system")
+                }), "user")
                 print(f"[ERROR] Failed to write to the file: {e}")
         elif type == "complete":
             print(f"[COMPLETE] {command['message']}")
@@ -198,11 +200,11 @@ class Agent:
     def convert_message_for_subagent(self, message):
         #print('convert_message_for_subagent', message)
         msg = Agent.parse_message(message['content'])
-        if msg is None:
-            return message
+        if msg is None or msg['type'] == 'parse_error':
+            return None
         if message['role'] == 'system' and msg['type'] == 'task':
             return {
-                'role': 'system',
+                'role': 'assistant',
                 'content': yaml.dump({
                     'type': 'assign',
                     'task': msg['task'],
