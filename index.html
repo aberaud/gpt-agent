@@ -6,7 +6,8 @@
     <title>AI output viewer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js" integrity="sha512-CSBhVREyzHAjAFfBlIBakjoRUKp5h7VSweP0InR/pAJyptH7peuhCsqAI/snV+TwZmXZqoUklpXp6R6wMnYf5Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <style>
 body {
     position: absolute;
@@ -56,80 +57,131 @@ const getClass = role => {
         default: return ''
     }
 }
-const getIcon = content => {
-    switch (content.type) {
+const default_command = {
+    icon: msg => 'bi-chat-left-dots-fill',
+    message: msg => `<b>${msg.command} ${msg.args.join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
+}
+const commands = {
+    COMPLETE: {
+        icon: msg => msg.args[0] == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger',
+        message: msg => msg.content
+    },
+    INFO: {
+        icon: msg => 'bi-info-circle-fill',
+        message: msg => msg.content
+    },
+    WRITE: {
+        icon: msg => 'bi-pencil-fill',
+        message: msg => `<b>${msg.args[0]}</b><pre>${escapeHtml(msg.content)}</pre>`
+    },
+    RUN: {
+        icon: msg => 'bi-terminal-fill',
+        message: msg => `<b>Bash></b><pre><code class="language-bash">${hljs.highlight(msg.content, {language: 'bash'}).value}</code></pre>`
+    },
+    PYTHON: {
+        icon: msg => 'bi-terminal-fill',
+        message: msg => `<b>Python></b><pre><code class="language-python">${hljs.highlight(msg.content, {language: 'python'}).value}</code></pre>`
+    },
+    ASSIGN: {
+        icon: msg => 'bi-diagram-3-fill',
+        message: msg => `<b>${msg.args[0]}</b> ${escapeHtmlFull(msg.content)}`
+    },
+    REQUEST: {
+        icon: msg => 'bi-question-circle-fill',
+        message: msg => `Request for ${msg.args[0]}<br/><b>${escapeHtmlFull(msg.content)}</b>`
+    },
+    INSTRUCTIONS: {
+        icon: msg => 'bi-journal-check',
+        message: msg => `<pre>${escapeHtml(msg.content)}</pre>`
+    },
+    IDENTITY: {
+        icon: msg => 'bi-journal-check',
+        message: msg => `<b>${escapeHtmlFull(msg.content)}</b>`
+    },
+    USER_INPUT: {
+        icon: msg => 'bi-journal-check',
+        message: msg => `<b>${escapeHtmlFull(msg.content)}</b>`
+    },
+    ENVIRONMENT: {
+        icon: msg => 'bi-info-circle',
+        message: msg => `<pre>${escapeHtml(msg.content)}</pre>`
+    },
+    OUTPUT: {
+        icon: msg => 'bi-info-circle',
+        message: msg => `<pre>${escapeHtml(msg.content)}</pre>`
+    },
+    PARSE_ERROR: {
+        icon: msg => 'bi-exclamation-circle-fill',
+        message: msg => `<b>Parsing error</b><pre>${escapeHtml(msg.content)}</pre>`
+    },
+}
+const escapeHtml = unsafe => unsafe ? unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;') : ''
+const escapeHtmlFull = unsafe => unsafe ? escapeHtml(unsafe).replaceAll('\n', '<br/>') : ''
+
+/*const getIcon = message => {
+    switch (message.command) {
         case 'info': return 'bi-info-circle-fill'
-        case 'completed': return content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle text-danger'
-        case 'complete': return content.status == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
+        case 'completed': return message.content == 'success' ? 'bi-check-circle' : 'bi-x-circle text-danger'
+        case 'COMPLETE': return message.content == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
         case 'request': return 'bi-question-circle-fill'
         case 'command': return 'bi-terminal-fill'
-        case 'write': return 'bi-pencil-fill'
-        case 'assign': return 'bi-diagram-3-fill'
+        case 'WRITE': return 'bi-pencil-fill'
+        case 'ASSIGN': return 'bi-diagram-3-fill'
         case 'parse_error':
         case 'error': return 'bi-exclamation-circle-fill'
-        case 'task':
-        case 'main_task': return 'bi-journal-check'
+        case 'INSTRUCTIONS':
+        case 'IDENTITY':
+        case 'USER_INPUT': return 'bi-journal-check'
         case 'query': return 'bi-search'
-        case 'file': return content.success ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
+        case 'file': return message.content ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
         default: return 'bi-chat-left-dots-fill'
     }
 }
-const getMessage = content => {
-    switch (content.type) {
+const getMessage = message => {
+    switch (message.command) {
         case 'info':
         case 'completed':
-        case 'complete':
-        case 'parse_error':
-        case 'error':
-        case 'request': return content.message
-        case 'command': return Array.isArray(content.command) ? content.command.map(c => `<pre>${c}</pre>`).join('\n')  : `<pre>${content.command || ''}</pre>`
-        case 'write': return `<b>${content.file}</b><pre>${content.content}</pre>`
+        case 'COMPLETE':
+        case 'request': return message.content
+        case 'command': return Array.isArray(message.command) ? message.command.map(c => `<pre><code class="language-bash">${c}<code></pre>`).join('\n')  : `<pre>${message.command || ''}</pre>`
+        case 'WRITE': return `<b>${message.args[0]}</b><pre>${message.content}</pre>`
         case 'reply':
-        case 'main_task': return `<b>${content.task}</b>`
-        case 'task': return `<b>${content.instructions}</b> ${content.task}`
-        case 'assign': return `<b>${content.id}</b> ${content.task}`
-        case 'query': return `<b>${content.source}</b> ${content.query}`
-        case 'file': return content.success ? `<b>${content.file}</b>` : `<b>${content.file}</b> ${content.error}`
-        default: return `<pre>${jsyaml.dump(content)}</pre>`
+        case 'IDENTITY':
+        case 'USER_INPUT': return `<b>${message.content}</b>`
+        case 'task': return `<b>${message.args[0]}</b> ${message.content}`
+        case 'ASSIGN': return `<b>${message.args[0]}</b> ${message.content}`
+        case 'QUERY': return `<b>${message.args[0]}</b> ${message.content}`
+        case 'file': return message.success ? `<b>${message.file}</b>` : `<b>${message.file}</b> ${message.error}`
+        case 'INSTRUCTIONS':
+        case 'parse_error':
+        case 'error': return `<pre>${escapeHtml(message.content)}</pre>`
+        default: return `<pre>${escapeHtml(message.content)}</pre>`
     }
-}
+}*/
 
-const parseMessage = message => {
-    try {
-        const msg = jsyaml.load(message)
-        if (!msg.type) {
-            if ('stdout' in msg || 'stderr' in msg) {
-                msg.type = 'command'
-                msg.command = msg.stdout || msg.stderr
-            } else if (msg.instructions && !msg.purpose) {
-                msg.type = 'task'
-            } else if (msg.file) {
-                msg.type = 'file'
-            }
-        }
-        console.log(msg)
-        return msg
-    } catch (e) {
-        return { type: 'parse_error', message: message }
-    }
-}
-
-const messageRow = (message, content) =>
-    `<li class="list-group-item message ${getClass(message.role)}">
-        <i class="${getIcon(content)} flex-shrink-0 me-2"></i>
-        ${getMessage(content)}
+const messageRow = message => {
+    const display = {...default_command, ...(commands[message.command.command] || {})}
+    console.log(message, display)
+    return `<li class="list-group-item message ${getClass(message.role)}">
+        <i class="${display.icon(message.command)} flex-shrink-0 me-2"></i>
+        ${display.message(message.command)}
     </li>`
+}
 
-const agentCard = agent =>
-    `<div class="card agent" id="agent-${agent.id}">
+const agentCard = agent => 
+    `<div class="card agent${agent.completed ? ' text-bg-secondary' : ''}" id="agent-${agent.id}">
         <div class="card-header"><h5 class="card-title">${agent.id}</h5></div>
         <ul class="messages list-group list-group-flush">
-            ${agent.messages.reverse().map(message => messageRow(message, parseMessage(message.content))).join('\n')}
+            ${agent.messages.reverse().map(message => messageRow(message)).join('\n')}
         </ul>
     </div>`
+
 const addResult = (container, agent) => {
     const card = document.createElement('div')
+    card.id = `agent-${agent.id}-container`
     card.classList.add('agent-container')
+    if (agent.completed)
+        card.classList.add('agent-complete')
     card.innerHTML = agentCard(agent)
     container.insertBefore(card, container.firstChild)
     card.animate([{ opacity: 0, transform: 'scale(.8)', width: '80px' }, {}],
@@ -138,7 +190,9 @@ const addResult = (container, agent) => {
 }
 const updateCard = (card, agent) => {
     console.log('updateCard', agent)
-    card.outerHTML = agentCard(agent)
+    card.innerHTML = agentCard(agent)
+    if (agent.completed)
+        card.classList.add('agent-complete')
 }
 const onSubmit = (e, id) => {
     console.log(e)
@@ -171,12 +225,17 @@ const new_websocket = (dispatch) => {
                 if (data.agents) {
                     for (const agent of data.agents) {
                         console.log(agent)
-                        const card = document.getElementById(`agent-${agent.id}`)
+                        agent.completed = agent.messages[agent.messages.length - 1].command.command == 'COMPLETE'
+                        const card = document.getElementById(`agent-${agent.id}-container`)
                         if (card)
                             updateCard(card, agent)
                         else
                             container.prepend(addResult(container, agent))
                     }
+                    Array.from(container.getElementsByClassName('agent-complete')).reverse().forEach(agent => {
+                        container.removeChild(agent)
+                        container.appendChild(agent)
+                    })
                 }
                 if (data.state == 'request') {
                     let card = document.getElementById(`agent-${data.id}`)

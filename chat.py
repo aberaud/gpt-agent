@@ -7,24 +7,35 @@ openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class ChatSession:
-    def __init__(self, model: str='gpt-4', system_prompt: Optional[str]=None):
+    def __init__(self, model: str='gpt-4', system_prompt: Optional[str | list[str]]=None):
         self.model = model
         self.messages = []
         if system_prompt:
-            self.messages.append({"role": "system", "content": system_prompt})
+            if isinstance(system_prompt, list):
+                for prompt in system_prompt:
+                    self.messages.append({"role": "system", "content": prompt})
+            else:
+                self.messages.append({"role": "system", "content": system_prompt})
     
     async def chat(self, message: Optional[str] = None, role: str = "user"):
         if message:
             self.add_message(message, role)
-        response = await openai.ChatCompletion.acreate(
-            model=self.model,
-            messages=self.messages,
-            max_tokens=1000,
-        )
-        rmsg = response.choices[0].message
-        #print(rmsg.content)
-        self.messages.append(rmsg)
-        return rmsg.content
+        retry = 3
+        while retry > 0:
+            try:
+                response = await openai.ChatCompletion.acreate(
+                    model=self.model,
+                    messages=self.messages,
+                    max_tokens=1000,
+                )
+                rmsg = response.choices[0].message
+                self.messages.append(rmsg)
+                return rmsg.content
+            except openai.OpenAIError as e:
+                print("Error: OpenAI API Error", e)
+                retry -= 1
+        if retry == 0:
+            raise e
 
     def add_message(self, message: str, role: str = "user"):
         self.messages.append({"role": role, "content": message})
