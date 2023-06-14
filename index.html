@@ -6,8 +6,8 @@
     <title>AI output viewer</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-light.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <style>
 body {
     position: absolute;
@@ -57,9 +57,22 @@ const getClass = role => {
         default: return ''
     }
 }
+const getLanguage = filename => {
+    switch (filename.split('.').pop()) {
+        case 'py': return 'python'
+        case 'sh': return 'bash'
+        default: return ''
+    }
+}
 const default_command = {
     icon: msg => 'bi-chat-left-dots-fill',
-    message: msg => `<b>${msg.command} ${msg.args.join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
+    message: msg => {
+        if (typeof(msg) == 'string') {
+            return `<pre>${escapeHtml(msg)}</pre>`
+        } else {
+            return `<b>${msg.command} ${msg.args.join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
+        }
+    }
 }
 const commands = {
     COMPLETE: {
@@ -72,15 +85,22 @@ const commands = {
     },
     WRITE: {
         icon: msg => 'bi-pencil-fill',
-        message: msg => `<b>${msg.args[0]}</b><pre>${escapeHtml(msg.content)}</pre>`
+        message: msg => {
+            const lang = getLanguage(msg.args[0])
+            if (lang) {
+                return `<b>${msg.args[0]}</b><pre><code class="language-${lang}">${hljs.highlight(msg.content, {language: lang}).value}</code></pre>`
+            } else {
+                return `<b>${msg.args[0]}</b><pre>${escapeHtml(msg.content)}</pre>`
+            }
+        }
     },
     RUN: {
         icon: msg => 'bi-terminal-fill',
-        message: msg => `<b>Bash></b><pre><code class="language-bash">${hljs.highlight(msg.content, {language: 'bash'}).value}</code></pre>`
+        message: msg => `<b>Bash</b><pre><code class="language-bash">${hljs.highlight(msg.content, {language: 'bash'}).value}</code></pre>`
     },
     PYTHON: {
         icon: msg => 'bi-terminal-fill',
-        message: msg => `<b>Python></b><pre><code class="language-python">${hljs.highlight(msg.content, {language: 'python'}).value}</code></pre>`
+        message: msg => `<b>Python</b><pre><code class="language-python">${hljs.highlight(msg.content, {language: 'python'}).value}</code></pre>`
     },
     ASSIGN: {
         icon: msg => 'bi-diagram-3-fill',
@@ -117,47 +137,6 @@ const commands = {
 }
 const escapeHtml = unsafe => unsafe ? unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;') : ''
 const escapeHtmlFull = unsafe => unsafe ? escapeHtml(unsafe).replaceAll('\n', '<br/>') : ''
-
-/*const getIcon = message => {
-    switch (message.command) {
-        case 'info': return 'bi-info-circle-fill'
-        case 'completed': return message.content == 'success' ? 'bi-check-circle' : 'bi-x-circle text-danger'
-        case 'COMPLETE': return message.content == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
-        case 'request': return 'bi-question-circle-fill'
-        case 'command': return 'bi-terminal-fill'
-        case 'WRITE': return 'bi-pencil-fill'
-        case 'ASSIGN': return 'bi-diagram-3-fill'
-        case 'parse_error':
-        case 'error': return 'bi-exclamation-circle-fill'
-        case 'INSTRUCTIONS':
-        case 'IDENTITY':
-        case 'USER_INPUT': return 'bi-journal-check'
-        case 'query': return 'bi-search'
-        case 'file': return message.content ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger'
-        default: return 'bi-chat-left-dots-fill'
-    }
-}
-const getMessage = message => {
-    switch (message.command) {
-        case 'info':
-        case 'completed':
-        case 'COMPLETE':
-        case 'request': return message.content
-        case 'command': return Array.isArray(message.command) ? message.command.map(c => `<pre><code class="language-bash">${c}<code></pre>`).join('\n')  : `<pre>${message.command || ''}</pre>`
-        case 'WRITE': return `<b>${message.args[0]}</b><pre>${message.content}</pre>`
-        case 'reply':
-        case 'IDENTITY':
-        case 'USER_INPUT': return `<b>${message.content}</b>`
-        case 'task': return `<b>${message.args[0]}</b> ${message.content}`
-        case 'ASSIGN': return `<b>${message.args[0]}</b> ${message.content}`
-        case 'QUERY': return `<b>${message.args[0]}</b> ${message.content}`
-        case 'file': return message.success ? `<b>${message.file}</b>` : `<b>${message.file}</b> ${message.error}`
-        case 'INSTRUCTIONS':
-        case 'parse_error':
-        case 'error': return `<pre>${escapeHtml(message.content)}</pre>`
-        default: return `<pre>${escapeHtml(message.content)}</pre>`
-    }
-}*/
 
 const messageRow = message => {
     const display = {...default_command, ...(commands[message.command.command] || {})}
