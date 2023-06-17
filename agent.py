@@ -28,7 +28,7 @@ purpose_subagent = """Your objective is to acheive a goal assigned to you, as pa
 Complete the task yourself or break it down into smaller tasks to be solved by other agents.
 Take time to think and inspect your environemnt before acting since other agents might have already done some work.
 Always check the result of your work and the work of other agents.
-After you complete, only your completion message will be preserved, along with any change you made to the system.
+After you complete, only your completion message and filesystem changes will be preserved.
 """
 
 purpose_single_agent = """You are an experienced engineer whose purpose is to achieve a provided goal.
@@ -255,13 +255,11 @@ def getPurpose(type='agent'):
         return purpose_subagent
 
 def getSystemPrompt(name, path, type='agent'):
-    return [f"""IDENTITY
-{purpose_agent if type == 'agent' else purpose_subagent}""",
-           f"""INSTRUCTIONS
-You are running in a Alpine Linux container, in your home directory.
+    return [purpose_agent if type == 'agent' else purpose_subagent,
+           f"""You are running in a Alpine Linux container, in your home directory.
 Use functions directly with no introduction. 
 Never report directly, instead use the 'COMPLETE' function to report completion of a task.
-""",f"""ENVIRONMENT
+""",f"""
 date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 name: {name}
 supervisor_path: {path}
