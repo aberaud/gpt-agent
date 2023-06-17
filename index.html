@@ -22,8 +22,8 @@ body {
   padding: 1rem;
   overflow-y: hidden;
   display: flex;
-  overflow-x: auto; /* Enable horizontal scrolling for the cards container */
-  white-space: nowrap; /* Prevent cards from wrapping to the next line */
+  overflow-x: auto;
+  white-space: nowrap;
 }
 .agent-container {
     width: calc(576px - 3rem);
@@ -54,6 +54,7 @@ const getClass = role => {
         case 'user': return 'list-group-item-primary'
         case 'assistant': return 'list-group-item-success'
         case 'system': return 'list-group-item-warning'
+        case 'function': return 'list-group-item-info'
         default: return ''
     }
 }
@@ -76,8 +77,8 @@ const default_command = {
 }
 const commands = {
     COMPLETE: {
-        icon: msg => msg.args[0] == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger',
-        message: msg => msg.content
+        icon: msg => msg.arguments.status == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger',
+        message: msg => escapeHtmlFull(msg.arguments.content)
     },
     INFO: {
         icon: msg => 'bi-info-circle-fill',
@@ -86,29 +87,29 @@ const commands = {
     WRITE: {
         icon: msg => 'bi-pencil-fill',
         message: msg => {
-            const lang = getLanguage(msg.args[0])
+            const lang = getLanguage(msg.arguments.filename)
             if (lang) {
-                return `<b>${msg.args[0]}</b><pre><code class="language-${lang}">${hljs.highlight(msg.content, {language: lang}).value}</code></pre>`
+                return `<b>${msg.arguments.filename}</b><pre><code class="language-${lang}">${hljs.highlight(msg.arguments.content, {language: lang}).value}</code></pre>`
             } else {
-                return `<b>${msg.args[0]}</b><pre>${escapeHtml(msg.content)}</pre>`
+                return `<b>${msg.arguments.filename}</b><pre>${escapeHtml(msg.content)}</pre>`
             }
         }
     },
     RUN: {
         icon: msg => 'bi-terminal-fill',
-        message: msg => `<b>Bash</b><pre><code class="language-bash">${hljs.highlight(msg.content, {language: 'bash'}).value}</code></pre>`
+        message: msg => `<b>Bash</b><pre><code class="language-bash">${hljs.highlight(msg.arguments.content, {language: 'bash'}).value}</code></pre>`
     },
     PYTHON: {
         icon: msg => 'bi-terminal-fill',
-        message: msg => `<b>Python</b><pre><code class="language-python">${hljs.highlight(msg.content, {language: 'python'}).value}</code></pre>`
+        message: msg => `<b>Python</b><pre><code class="language-python">${hljs.highlight(msg.arguments.content, {language: 'python'}).value}</code></pre>`
     },
     ASSIGN: {
         icon: msg => 'bi-diagram-3-fill',
-        message: msg => `<b>${msg.args[0]}</b> ${escapeHtmlFull(msg.content)}`
+        message: msg => `<b>${msg.arguments.agent_id}</b> ${escapeHtmlFull(msg.arguments.content)}`
     },
     REQUEST: {
         icon: msg => 'bi-question-circle-fill',
-        message: msg => `Request for ${msg.args[0]}<br/><b>${escapeHtmlFull(msg.content)}</b>`
+        message: msg => `Request for ${msg.arguments.supervisor}<br/><b>${escapeHtmlFull(msg.arguments.content)}</b>`
     },
     INSTRUCTIONS: {
         icon: msg => 'bi-journal-check',
@@ -128,7 +129,7 @@ const commands = {
     },
     OUTPUT: {
         icon: msg => 'bi-info-circle',
-        message: msg => `<pre>${escapeHtml(msg.content)}</pre>`
+        message: msg => `<pre>${escapeHtml(msg.arguments.content)}</pre>`
     },
     PARSE_ERROR: {
         icon: msg => 'bi-exclamation-circle-fill',
@@ -139,11 +140,12 @@ const escapeHtml = unsafe => unsafe ? unsafe.replaceAll('&', '&amp;').replaceAll
 const escapeHtmlFull = unsafe => unsafe ? escapeHtml(unsafe).replaceAll('\n', '<br/>') : ''
 
 const messageRow = message => {
-    const display = {...default_command, ...(commands[message.command.command] || {})}
+    const display = {...default_command, ...(commands[message.function_call && message.function_call.name] || {})}
     console.log(message, display)
     return `<li class="list-group-item message ${getClass(message.role)}">
-        <i class="${display.icon(message.command)} flex-shrink-0 me-2"></i>
-        ${display.message(message.command)}
+        <i class="${display.icon(message.function_call)} flex-shrink-0 me-2"></i>
+        ${message.function_call && display.message(message.function_call) || ''}
+        ${message.content && escapeHtmlFull(message.content) || ''}
     </li>`
 }
 
@@ -204,7 +206,8 @@ const new_websocket = (dispatch) => {
                 if (data.agents) {
                     for (const agent of data.agents) {
                         console.log(agent)
-                        agent.completed = agent.messages[agent.messages.length - 1].command.command == 'COMPLETE'
+                        const lastMessage = agent.messages[agent.messages.length - 1]
+                        agent.completed = lastMessage.function_call && lastMessage.function_call.name == 'COMPLETE'
                         const card = document.getElementById(`agent-${agent.id}-container`)
                         if (card)
                             updateCard(card, agent)
@@ -225,11 +228,7 @@ const new_websocket = (dispatch) => {
                     textMsg.textContent = `Waiting for human input: ${data.id}`
                     const header = card.querySelector('.card-header')
                     header.innerHTML = `<h5 class="card-title">${data.id}</h5>${inputBox(data.id, data.message)}`
-                        /*<div class="spinner-border spinner-border-sm text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>`*/
                 } else if (data.state == 'running') {
-                    //data.agents[data.agents.length - 1].messages.push(data.message)
                     loader.remove()
                     const lastAgent = data.agents[data.agents.length - 1]
                     textMsg.textContent = `Agent running: ${lastAgent.id}`

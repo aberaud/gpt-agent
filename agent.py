@@ -16,7 +16,7 @@ from agentcmd import CommandParser, ParseError
 
 purpose_agent = """You are an autonomous agent whose objective is to achieve a provided goal.
 Analyze the goal and break it down into smaller tasks to assign to other agents, until the goal is achieved,
-or acheive it yourself if you can using your own experience and the provided commands.
+or acheive it yourself if you can using your own experience and the provided functions.
 Take time to think and inspect your environment before acting.
 Always check the result of your work and the work of other agents."""
 
@@ -36,17 +36,18 @@ Analyze the goal and, if required, break it down into smaller tasks to be solved
 Take time to think and inspect your environment before acting.
 Always check the result of your work."""
 
-async def info_callback(agent, args, content):
-    print(f"INFO: {content}")
+async def info_callback(agent, args):
+    print(f"INFO: {args}")
 
-async def search_callback(agent, args, content):
-    print(f"QUERY: {content}")
-    results = await search(content)
+async def search_callback(agent, args):
+    print(f"QUERY: {args}")
+    results = await search(query=args['content'], source=args['source'])
     print(f"RESULTS: {results}")
     return pprint.pformat(results)
 
-async def write_callback(agent, args, content):
+async def write_callback(agent, args):
     file_name = args['filename']
+    content = args.get('content', '')
     try:
         with open(file_name, 'w') as file:
             file.write(content)
@@ -56,29 +57,34 @@ async def write_callback(agent, args, content):
         print(f"[ERROR] Failed to write: {e}")
         return f"Error: {e}"
 
-async def request_callback(agent, args, content):
-    print(f"REQUEST: {args} {content}")
+async def request_callback(agent, args):
     to = args['supervisor']
-    print(f"[REQUEST] for {to}: {content}")
-    await agent.get_human_input(content)
+    request = args['content']
+    print(f"[REQUEST] for {to}: {request}")
+    await agent.get_human_input(request)
 
-async def assign_callback(agent, args, content):
-    print(f"ASSIGN: {args} {content}")
-    await agent.handle_agent_assign(args['agent_id'], content)
+async def assign_callback(agent, args):
+    return await agent.handle_agent_assign(args['agent_id'], args['content'])
 
-async def run_callback(agent, args, content):
-    print(f"RUN: {content}")
-    return await agent.handle_agent_process(content)
-    #return subprocess.check_output(content, shell=True).decode('utf-8')
+async def run_callback(agent, args):
+    print(f"RUN: {args}")
+    return await agent.handle_agent_process(args['content'])
 
-async def python_callback(agent, args, content):
+async def python_callback(agent, args):
+    content = args['content']
     print(f"PYTHON:\n{content}")
-    if content is None:
+    if not content:
         print("No Python code provided.")
         return
 
     process = await asyncio.create_subprocess_exec(
         "ipython",
+        "--no-banner",
+        "--no-confirm-exit",
+        "--no-term-title",
+        "--quiet",
+        "--colors=NoColor",
+        "--InteractiveShell.xmode=Plain",
         "-c",
         content,
         stdout=subprocess.PIPE,
@@ -87,72 +93,142 @@ async def python_callback(agent, args, content):
     stdout, stderr = await process.communicate()
     return_code = process.returncode
     if return_code == 0:
-        print(f"Python code output:\n{stdout.decode('utf-8')}")
+        #print(f"Python code output:\n{stdout.decode('utf-8')}")
         return stdout.decode('utf-8')
     else:
-        print(f"Error: {stderr.decode('utf-8')}")
-        return stderr.decode('utf-8')
+        #print(f"Error ({return_code}): {stderr.decode('utf-8') or stdout.decode('utf-8')}")
+        return stderr.decode('utf-8') or stdout.decode('utf-8')
 
 
-async def complete_callback(agent, args, content):
-    print(f"COMPLETE: {args} {content}")
+async def complete_callback(agent, args):
+    print(f"COMPLETE: {args}")
     await agent.stop()
 
 commands = [
     {
         "name": "WRITE",
-        "args": ['filename'],
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The file to write to"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The content to write to the file"
+                }
+            },
+            "required": ["filename"],
+        },
         "description": "Write to a file (overrides existing content, if any)",
-        "example": "WRITE file.txt\nthis is some\nmultiline file content",
         "callback": write_callback
     },
     {
         "name": "REQUEST",
-        "args": ['supervisor'],
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "supervisor": {
+                    "type": "string",
+                    "description": "The id of the supervisor to request information from"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The request to send to the supervisor"
+                }
+            },
+            "required": ["supervisor", "content"],
+        },
         "description": "Ask for more information to a supervisor (human or agent) - don't assign tasks or report status with this command",
-        "example": "REQUEST human\nShould we use rust or go?",
         "callback": request_callback
     },
     {
         "name": "ASSIGN",
-        "args": ['agent_id'],
-        "description": "Assign a task to another agent. Provide an id and a detailed description of the task including all required context.",
-        "example": "ASSIGN create\nCreate a directory 'MyProject' with an empty git repo.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "description": "The id of the agent to assign the task to"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The task to assign to the agent"
+                }
+            },
+            "required": ["agent_id", "content"],
+        },
+        "description": "Assign a task to another independent agent. Provide an id and a detailed description of the task including all required context.",
         "callback": assign_callback
     },
     {
         "name": "RUN",
-        "args": [],
-        "description": "Run one or more shell command and get the output. Note that the shell is reset every line.",
-        "example": "RUN\nmkdir project\ncd project && git init",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The commands to run"
+                }
+            },
+            "required": ["content"],
+        },
+        "description": "Run one or more shell command and get the output. Note that the shell is reset between each invocation.",
         "callback": run_callback
     },
     {
         "name": "PYTHON",
-        "args": [],
-        "description": "Run a python3 script. Use it to perform calculations, text manipulation, or other operations.",
-        "example": "PYTHON\nprint(9457*2452-74)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The python code to run"
+                }
+            },
+            "required": ["content"],
+        },
+        "description": "Run code or commands in an IPython shell (python 3.11). Use it to perform calculations, text manipulation, or other operations. The shell is reset between each invocation.",
         "callback": python_callback
     },
     {
         "name": "QUERY",
-        "args": ['source'],
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "The source to query (knowledge-graph, wikipedia, google)",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The query to send to the source",
+                }
+            },
+            "required": ["source", "content"],
+        },
         "description": "Search for information online. Available sources: knowledge-graph, wikipedia, google",
         "example": "QUERY google\nParis",
         "callback": search_callback,
     },
     {
-        "name": "INFO",
-        "args": [],
-        "description": "Note information for future reference or planning (don't combine it with other commands - always one command per message)",
-        "example": "INFO\nThis is some information to remember for later.",
-        "callback": info_callback
-    },
-    {
         "name": "COMPLETE",
-        "args": ['status'],
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "The status of the task (success or failure)",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The message to send to the supervisor",
+                }
+            },
+            "required": ["status", "content"],
+        },
         "description": "Notify task completion (either success or failure), providing your supervisor with a corresponding 'completed' message. Provide all relevent information about what you did in the message. If you are stuck in a loop, complete with failure.",
-        "example": "COMPLETE success\nEmpty repo created in directory 'MyProject'",
         "callback": complete_callback
     }
 ]
@@ -178,20 +254,13 @@ def getPurpose(type='agent'):
     elif type == 'subagent':
         return purpose_subagent
 
-def getSystemPrompt(name, path, doc, type='agent'):
+def getSystemPrompt(name, path, type='agent'):
     return [f"""IDENTITY
 {purpose_agent if type == 'agent' else purpose_subagent}""",
            f"""INSTRUCTIONS
 You are running in a Alpine Linux container, in your home directory.
-Always use the following syntax:
-```COMMAND arguments
-Optional content
-that can be multiline.
-```
-And always only use a single command every time, directly and without any introduction, comment or text. Trying to use multiple commands at once will result in an error.
-Never report directly, instead use the 'COMPLETE' command to report completion of a task.
-Available commands:
-{doc}
+Use functions directly with no introduction. 
+Never report directly, instead use the 'COMPLETE' function to report completion of a task.
 """,f"""ENVIRONMENT
 date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 name: {name}
@@ -202,24 +271,28 @@ directory_content:\n{list_files(os.getcwd())}
 class Agent:
     def __init__(self, args, web_server: Session, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None):
         self.args = args
-        self.cmd = CommandParser(commands)
+        self.commands = {command['name']: command for command in commands}
         self.name = name
         self.web_server = web_server
         self.parent = parent
         self.supervisor_path = ['human'] if parent is None else parent.supervisor_path + [parent.name]
         if prompt is None:
-            prompt = getSystemPrompt(name, self.supervisor_path, self.cmd.generate_documentation(), role)
-        self.chat_session = ChatSession(args.model, prompt)
+            prompt = getSystemPrompt(name, self.supervisor_path, role)
+        self.chat_session = ChatSession(args.model, prompt, commands=self.commands)
         self.stopped = False
     
     def parse_message(self, message):
-        #print('parse_message', message)
-        command = self.cmd.parse_syntax(message['content'])[0]
-        return {
-            'role': message['role'],
-            #'message': message['content'],
-            'command': command
-        }
+        function_call = message.get("function_call")
+        if function_call:
+            return {
+                'role': message['role'],
+                'content': message['content'],
+                'function_call': {
+                    'name': function_call["name"],
+                    'arguments': json.loads(function_call["arguments"])
+                }
+            }
+        return message
 
     async def send_update(self):
         try:
@@ -252,11 +325,14 @@ class Agent:
                 print(f"Agent {self.name} running...")
                 response = await self.chat_session.chat()
                 try:
-                    for command in self.cmd.parse(response):
-                        await self.handle_agent_command(command['command'], command['args'], command['content'])
-                except ParseError as e:
-                    print(f"[ERROR] Couldn't parse agent's message: {response}")
-                    self.chat_session.add_message(f"PARSE_ERROR\n{e}\nHint: always use the proper syntax `COMMAND arguments` and one of the documented commands. Retry your last message using the appropriate syntax.", "system")
+                    function_call = response.get("function_call")
+                    if function_call:
+                        function_name = function_call["name"]
+                        function_args = json.loads(function_call["arguments"])
+                        await self.handle_agent_command(function_name, function_args)
+                #except ParseError as e:
+                #    print(f"[ERROR] Couldn't parse agent's message: {response}")
+                #    self.chat_session.add_message(f"PARSE_ERROR\n{e}\nHint: always use the proper syntax `COMMAND arguments` and one of the documented commands. Retry your last message using the appropriate syntax.", "system")
                 except Exception as e:
                     print(f"[ERROR] Couldn't handle agent's message: {response}")
                     traceback.print_exc()
@@ -276,33 +352,15 @@ class Agent:
             'message': message
         })
         print(f"{message}: {user_input}")
-        self.chat_session.add_message(f"USER_INPUT {reply_type}\n{user_input}")
+        self.chat_session.add_message(json.dumps({ reply_type: user_input }))
 
-    async def handle_agent_command(self, command, args, content):
-        #print(f"Handling command {command} with args {args} and content {content}")
-        result = await command["callback"](self, args, content)
+    async def handle_agent_command(self, command_name, args):
+        command = self.commands[command_name]
+        # print(f"Handling command {command} with args {args}")
+        result = await command["callback"](self, args)
         print(f"Command {command['name']} returned: {result}")
         if result is not None:
-            if result:
-                self.chat_session.add_message(f"OUTPUT\n{result}", "user")
-            else:
-                self.chat_session.add_message(f"OUTPUT\n(empty output)", "user")
-        return
-
-    def convert_message_for_subagent(self, message):
-        msg = self.cmd.parse(message['content'])
-        if msg is None or msg.get('type') == 'parse_error':
-            return None
-        if message['role'] == 'system' and msg.get('type') == 'task':
-            return {
-                'role': 'assistant',
-                'content': yaml.dump({
-                    'type': 'assign',
-                    'task': msg.get('task'),
-                    'id': self.name
-                })
-            }
-        return message
+            self.chat_session.add_message(result, "function", name=command_name)
 
     def convert_history_for_subagent(self):
         agent_history = self.chat_session.messages[1:-1]
@@ -313,12 +371,12 @@ class Agent:
         print(f"[ASSIGN] {sub_agent_id} {task}")
         await self.send_update()
         sub_agent = Agent(self.args, web_server=self.web_server, name=sub_agent_id, role='subagent', parent=self)
-        sub_agent.chat_session.add_message(f"USER_INPUT main_goal\n{task}", "system")
+        sub_agent.chat_session.add_message(json.dumps({"main_goal": task}), "user")
         await sub_agent.run()
         last_msg = sub_agent.chat_session.messages[-1]
-        last_msg_parsed = self.parse_message(last_msg)['command']
+        last_msg_parsed = last_msg.get("function_call")
         print(f"[ASSIGN] {sub_agent_id} completed: {last_msg_parsed}")
-        self.chat_session.add_message(f"OUTPUT {last_msg_parsed['args'][0]}\n{last_msg_parsed['content']}", "user")
+        return last_msg_parsed and last_msg_parsed['arguments']
 
     async def handle_agent_process(self, command):
         await self.send_update()
@@ -349,6 +407,8 @@ async def agent_worker(task_queue: Queue):
             if task is None:
                 break
             await asyncio.gather(task)
+        except KeyboardInterrupt:
+            break
         except CancelledError:
             break
         except Exception as e:
@@ -389,6 +449,6 @@ async def main(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Start the Argent server.")
-    parser.add_argument("-m", "--model", default="gpt-4", help="Specify the model to use (default: gpt-4).")
+    parser.add_argument("-m", "--model", default="gpt-4-0613", help="Specify the model to use (default: gpt-4).")
     args = parser.parse_args()
     asyncio.run(main(args))

@@ -7,9 +7,14 @@ openai.organization = os.getenv("OPENAI_ORG_ID")
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class ChatSession:
-    def __init__(self, model: str='gpt-4', system_prompt: Optional[str | list[str]]=None):
+    def __init__(self, model: str='gpt-4-0613', system_prompt: Optional[str | list[str]]=None, commands: dict={}):
         self.model = model
         self.messages = []
+        self.commands = [{
+                        'name': c['name'], 
+                        'description': c['description'],
+                        'parameters': c['parameters']
+                    } for c in commands.values()]
         if system_prompt:
             if isinstance(system_prompt, list):
                 for prompt in system_prompt:
@@ -21,24 +26,28 @@ class ChatSession:
         if message:
             self.add_message(message, role)
         retry = 3
-        while retry > 0:
+        while retry:
             try:
                 response = await openai.ChatCompletion.acreate(
                     model=self.model,
                     messages=self.messages,
+                    functions=self.commands,
                     max_tokens=1000,
                 )
                 rmsg = response.choices[0].message
                 self.messages.append(rmsg)
-                return rmsg.content
+                return rmsg
             except openai.OpenAIError as e:
                 print("Error: OpenAI API Error", e)
                 retry -= 1
         if retry == 0:
             raise e
 
-    def add_message(self, message: str, role: str = "user"):
-        self.messages.append({"role": role, "content": message})
+    def add_message(self, message: str, role: str = "user", name: Optional[str] = None):
+        if name:
+            self.messages.append({"role": role, "content": message, "name": name})
+        else:
+            self.messages.append({"role": role, "content": message})
 
 
 async def start_chat(args):
@@ -65,7 +74,7 @@ if __name__ == "__main__":
     import asyncio
     import argparse
     parser = argparse.ArgumentParser(description="Interact with the chat session using a CLI.")
-    parser.add_argument("-m", "--model", default="gpt-4", help="Specify the model to use (default: gpt-4).")
+    parser.add_argument("-m", "--model", default="gpt-4-0613", help="Specify the model to use (default: gpt-4).")
     parser.add_argument("-sp", "--system-prompt", help="Optional system prompt to start the conversation.")
     args = parser.parse_args()
 
