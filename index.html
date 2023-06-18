@@ -42,10 +42,14 @@ body {
     white-space: normal;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 .messages {
     flex: 1;
     overflow-y: auto;
+}
+#main-menu {
+    margin: 8px;
 }
     </style>    
     <script>
@@ -71,7 +75,7 @@ const default_command = {
         if (typeof(msg) == 'string') {
             return `<pre>${escapeHtml(msg)}</pre>`
         } else {
-            return `<b>${msg.command} ${msg.args.join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
+            return `<b>${msg.command} ${Object.values(msg.arguments).join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
         }
     }
 }
@@ -105,11 +109,11 @@ const commands = {
     },
     ASSIGN: {
         icon: msg => 'bi-diagram-3-fill',
-        message: msg => `<b>${msg.arguments.agent_id}</b> ${escapeHtmlFull(msg.arguments.content)}`
+        message: msg => `<b>${msg.arguments.agent_id}</b><br/>${escapeHtmlFull(msg.arguments.content)}`
     },
     REQUEST: {
         icon: msg => 'bi-question-circle-fill',
-        message: msg => `Request for ${msg.arguments.supervisor}<br/><b>${escapeHtmlFull(msg.arguments.content)}</b>`
+        message: msg => `Request for ${msg.arguments.supervisor}<br/><br/><b>${escapeHtmlFull(msg.arguments.content)}</b>`
     },
     INSTRUCTIONS: {
         icon: msg => 'bi-journal-check',
@@ -136,9 +140,22 @@ const commands = {
         message: msg => `<b>Parsing error</b><pre>${escapeHtml(msg.content)}</pre>`
     },
 }
+const formatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+
+  // These options are needed to round to whole numbers if that's what you want.
+  //minimumFractionDigits: 0, // (this suffices for whole numbers, but will print 2500.10 as $2,500.1)
+  //maximumFractionDigits: 0, // (causes 2500.99 to be printed as $2,501)
+});
 const escapeHtml = unsafe => unsafe ? unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;') : ''
 const escapeHtmlFull = unsafe => unsafe ? escapeHtml(unsafe).replaceAll('\n', '<br/>') : ''
-
+const htmlToElement = html => {
+    var template = document.createElement('template');
+    html = html.trim();
+    template.innerHTML = html;
+    return template.content.firstChild;
+}
 const messageRow = message => {
     const display = {...default_command, ...(commands[message.function_call && message.function_call.name] || {})}
     console.log(message, display)
@@ -172,24 +189,34 @@ const addResult = (container, agent) => {
 const updateCard = (card, agent) => {
     console.log('updateCard', agent)
     card.innerHTML = agentCard(agent)
-    if (agent.completed)
+    if (agent.completed) {
         card.classList.add('agent-complete')
+        card.querySelector('.agent').classList.add('text-bg-secondary')
+    }
+}
+const onRestart = () => {
+    const container = document.getElementById('main-content')
+    container.innerHTML = ''
+    ws.send(JSON.stringify({ restart: true }))
+    return false
 }
 const onSubmit = (e, id) => {
-    console.log(e)
     ws.send(JSON.stringify({ id: id, message: e.target.querySelector('input').value }))
     e.target.remove()
     return false
 }
 const inputBox = (id, msg) => `<form onsubmit="return onSubmit(event, '${id}')">
                 <label class="form-label">${msg}</label>
-                <input type="text" class="form-control">
+                <input type="text" class="form-control" autofocus>
             </form>`
 
 const new_websocket = (dispatch) => {
     const container = document.getElementById('main-content')
     const loader = document.getElementById('loader')
     const textMsg = document.getElementById('main-title')
+    const usage = document.getElementById('usage')
+    const usageTokens = document.getElementById('usage-tokens')
+    const usageDollars = document.getElementById('usage-dollars')
     const ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws`)
     ws.binaryType = "blob"
     ws.onopen = () => {
@@ -203,9 +230,9 @@ const new_websocket = (dispatch) => {
             if (typeof m.data == "string") {
                 const data = JSON.parse(m.data)
                 console.log(data)
-                if (data.agents) {
-                    for (const agent of data.agents) {
-                        console.log(agent)
+                const agents = data.agents ? Object.values(data.agents) : []
+                if (agents) {
+                    for (const agent of agents) {
                         const lastMessage = agent.messages[agent.messages.length - 1]
                         agent.completed = lastMessage.function_call && lastMessage.function_call.name == 'COMPLETE'
                         const card = document.getElementById(`agent-${agent.id}-container`)
@@ -219,7 +246,31 @@ const new_websocket = (dispatch) => {
                         container.appendChild(agent)
                     })
                 }
-                if (data.state == 'request') {
+                if (data.usage) {
+                    usageTokens.textContent = `${data.usage.total_tokens} tokens`
+                    usageDollars.textContent = formatter.format(data.usage.total_dollars)
+                }
+                if (data.state == 'message') {
+                    //let card = document.getElementById(`agent-${data.id}`)
+                    const card = document.getElementById(`agent-${data.id}-container`)
+                    const completed = data.message.function_call && data.message.function_call.name == 'COMPLETE'
+                    if (completed) loader.remove()
+                    if (!card) {
+                        card = addResult(container, { id: data.id, messages: [data.message], completed: completed })
+                        container.prepend(card)
+                    } else {
+                        const messages = card.querySelector('.messages')
+                        const newMessage = htmlToElement(messageRow(data.message))
+                        messages.prepend(newMessage)
+                        h = newMessage.offsetHeight
+                        newMessage.animate([{ 'padding-top': 0, 'padding-bottom':0, height: 0 }, { height: h + 'px'}],
+                            { duration: 400, easing: 'ease-out' })
+                        if (completed) {
+                            card.classList.add('agent-complete')
+                            card.querySelector('.agent').classList.add('text-bg-secondary')
+                        }
+                    }
+                } else if (data.state == 'request') {
                     let card = document.getElementById(`agent-${data.id}`)
                     if (!card) {
                         card = addResult(container, { id: data.id, messages: [] })
@@ -230,9 +281,10 @@ const new_websocket = (dispatch) => {
                     header.innerHTML = `<h5 class="card-title">${data.id}</h5>${inputBox(data.id, data.message)}`
                 } else if (data.state == 'running') {
                     loader.remove()
-                    const lastAgent = data.agents[data.agents.length - 1]
-                    textMsg.textContent = `Agent running: ${lastAgent.id}`
-                    const card = document.getElementById(`agent-${lastAgent.id}`)
+                    console.log(agents)
+                    const lastAgent = (agents && agents.length > 0) ? agents[agents.length - 1].id : data.id
+                    textMsg.textContent = `Agent running: ${lastAgent}`
+                    const card = document.getElementById(`agent-${lastAgent}`)
                     if (card) {
                         const header = card.querySelector('.card-header')
                         header.appendChild(loader)
@@ -254,11 +306,22 @@ const new_websocket = (dispatch) => {
 <body class="bg-dark-subtle">
     <header>
         <div id="searchbar" class="container">
-            <h1 id="main-title" class="display-5">Connecting...</h1>
-            <div id="loader" class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-            
+            <div class="card mt-1">
+                <div class="d-flex" style="align-items: center; padding: .5rem;">
+                    <h1 id="main-title" class="display-5 d-inline">Connecting...</h1>
+                    <div id="loader" class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <ul class="list-group list-group-flush ms-auto">
+                        <li id="usage-tokens" class="list-group-item text-body-secondary"></li>
+                        <li id="usage-dollars" class="list-group-item text-body-secondary"></li>
+                    </ul>
+                    <div id="main-menu" class="btn-group" role="group" aria-label="Basic example">
+                        <!--<button type="button" class="btn btn-primary"><i class="bi bi-stop"></i></button>-->
+                        <button type="button" class="btn btn-primary" onclick="onRestart()"><i class="bi bi-arrow-clockwise"></i></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
     <div class="content" id="main-content"></div>

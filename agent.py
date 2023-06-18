@@ -8,7 +8,7 @@ import datetime
 import traceback
 from typing import Optional
 #import yaml
-from chat import ChatSession
+from chat import ChatSession, get_total_usage
 from web_server import WebServer, Session
 from search import search
 from asyncio import CancelledError, Queue
@@ -267,19 +267,21 @@ directory_content:\n{list_files(os.getcwd())}
 """]
 
 class Agent:
-    def __init__(self, args, web_server: Session, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None):
+    def __init__(self, args, web_server: Session, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None, context: dict={}):
         self.args = args
         self.commands = {command['name']: command for command in commands}
         self.name = name
         self.web_server = web_server
         self.parent = parent
+        self.context = context
         self.supervisor_path = ['human'] if parent is None else parent.supervisor_path + [parent.name]
         if prompt is None:
             prompt = getSystemPrompt(name, self.supervisor_path, role)
         self.chat_session = ChatSession(args.model, prompt, commands=self.commands)
         self.stopped = False
     
-    def parse_message(self, message):
+    @staticmethod
+    def parse_message(message):
         function_call = message.get("function_call")
         if function_call:
             return {
@@ -292,17 +294,10 @@ class Agent:
             }
         return message
 
-    async def send_update(self):
+    async def send_new_message(self, message, status='running'):
         try:
             if self.web_server:
-                await self.web_server.send_state({
-                    'state': 'running',
-                    'agents': [{
-                        'id': self.name,
-                        'path': self.supervisor_path,
-                        'messages': [self.parse_message(m) for m in self.chat_session.messages]
-                    }]
-                })
+                await self.web_server.add_message(self.name, Agent.parse_message(message), usage=get_total_usage())
         except KeyboardInterrupt:
             pass
         except CancelledError:
@@ -317,11 +312,12 @@ class Agent:
 
     async def run(self):
         print(f"Agent {self.name} ({self.chat_session.model}) created")
+        await self.web_server.set_state(self.name, 'running', usage=get_total_usage())
         while not self.stopped:
             try:
-                await self.send_update()
                 print(f"Agent {self.name} running...")
                 response = await self.chat_session.chat()
+                await self.send_new_message(response)
                 try:
                     function_call = response.get("function_call")
                     if function_call:
@@ -340,17 +336,16 @@ class Agent:
             except KeyboardInterrupt:
                 print("\nExiting.")
                 break
-        await self.send_update()
+        #await self.send_update()
         print(f"Agent {self.name} ended")
 
+    async def add_message(self, message: str, role: str = "user", name: Optional[str] = None):
+        await self.send_new_message(self.chat_session.add_message(message, role, name))
+
     async def get_human_input(self, message, reply_type="reply"):
-        user_input = await self.web_server.get_input({
-            'state': 'request',
-            'id': self.name,
-            'message': message
-        })
+        user_input = await self.web_server.get_input(self.name, message)
         print(f"{message}: {user_input}")
-        self.chat_session.add_message(json.dumps({ reply_type: user_input }))
+        await self.add_message(json.dumps({ reply_type: user_input }))
 
     async def handle_agent_command(self, command_name, args):
         command = self.commands[command_name]
@@ -358,7 +353,7 @@ class Agent:
         result = await command["callback"](self, args)
         print(f"Command {command['name']} returned: {result}")
         if result is not None:
-            self.chat_session.add_message(result, "function", name=command_name)
+            await self.add_message(result, "function", name=command_name)
 
     def convert_history_for_subagent(self):
         agent_history = self.chat_session.messages[1:-1]
@@ -367,9 +362,10 @@ class Agent:
 
     async def handle_agent_assign(self, sub_agent_id, task):
         print(f"[ASSIGN] {sub_agent_id} {task}")
-        await self.send_update()
-        sub_agent = Agent(self.args, web_server=self.web_server, name=sub_agent_id, role='subagent', parent=self)
-        sub_agent.chat_session.add_message(json.dumps({"main_goal": task}), "user")
+        #await self.send_update()
+        sub_agent = Agent(self.args, web_server=self.web_server, name=sub_agent_id, role='subagent', parent=self, context=self.context)
+        #sub_agent.chat_session.add_message(json.dumps({"main_goal": task}), "user")
+        await sub_agent.add_message(json.dumps({"main_goal": task}), "user")
         await sub_agent.run()
         last_msg = sub_agent.chat_session.messages[-1]
         last_msg_parsed = last_msg.get("function_call")
@@ -377,7 +373,7 @@ class Agent:
         return last_msg_parsed and last_msg_parsed['arguments']
 
     async def handle_agent_process(self, command):
-        await self.send_update()
+        #await self.send_update()
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
@@ -412,6 +408,7 @@ async def agent_worker(task_queue: Queue):
         except Exception as e:
             print(f'Error in worker: {e}')
             traceback.print_exc()
+            break
 
 
 task_queue = Queue()
@@ -428,12 +425,13 @@ async def execute_chat(args, session: Session):
         else:
             shutil.rmtree(file_name)
 
-    session.agent = Agent(args, web_server=session)
-    await session.agent.get_human_input("Main goal", "main_goal")
-    await session.agent.run()
-    await session.send_state({
-        'state': 'completed'
-    })
+    context = {}
+
+    agent = Agent(args, web_server=session, context=context)
+    await session.set_agent(agent, messages=[Agent.parse_message(message) for message in agent.chat_session.messages])
+    await agent.get_human_input("Main goal", "main_goal")
+    await agent.run()
+    await session.set_state(agent.name, 'completed', usage=get_total_usage())
     print("Completed")
 
 

@@ -14,8 +14,12 @@ def get_price(model: str, usage: dict) -> float:
 total_usage = {
     'prompt_tokens': 0,
     'completion_tokens': 0,
-    'total_tokens': 0
+    'total_tokens': 0,
+    'total_dollars': 0,
 }
+
+def get_total_usage():
+    return total_usage
 
 class ChatSession:
     def __init__(self, model: str='gpt-4-0613', system_prompt: Optional[str | list[str]]=None, commands: dict={}):
@@ -55,6 +59,7 @@ class ChatSession:
                 for key in self.usage.keys():
                     self.usage[key] += usage[key]
                     total_usage[key] += usage[key]
+                total_usage['total_dollars'] = get_price(self.model, total_usage)
                 
                 print('Used: ${:.3f} ({} tokens)'.format(get_price(self.model, usage), usage['total_tokens']))
                 #print('Chat Session: ${:.3f} ({} tokens)'.format(get_price(self.model, self.usage), self.usage['total_tokens']))
@@ -66,14 +71,16 @@ class ChatSession:
             except openai.OpenAIError as e:
                 print("Error: OpenAI API Error", e)
                 retry -= 1
-        if retry == 0:
-            raise e
+                if retry == 0:
+                    raise e
 
-    def add_message(self, message: str, role: str = "user", name: Optional[str] = None):
+    def add_message(self, message: str, role: str = "user", name: Optional[str] = None) -> dict:
         if name:
-            self.messages.append({"role": role, "content": message, "name": name})
+            msg = {"role": role, "content": message, "name": name}
         else:
-            self.messages.append({"role": role, "content": message})
+            msg = {"role": role, "content": message}
+        self.messages.append(msg)
+        return msg
 
 
 async def start_chat(args):
