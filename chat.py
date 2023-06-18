@@ -17,9 +17,17 @@ total_usage = {
     'total_tokens': 0,
     'total_dollars': 0,
 }
+models = None
 
 def get_total_usage():
     return total_usage
+
+async def get_model_list():
+    global models
+    if models is None:
+        m = await openai.Model.alist()
+        models = sorted([model.id for model in m.data if model.id.startswith('gpt')], reverse=True)
+    return models
 
 class ChatSession:
     def __init__(self, model: str='gpt-4-0613', system_prompt: Optional[str | list[str]]=None, commands: dict={}):
@@ -41,7 +49,7 @@ class ChatSession:
                     self.messages.append({"role": "system", "content": prompt})
             else:
                 self.messages.append({"role": "system", "content": system_prompt})
-    
+
     async def chat(self, message: Optional[str] = None, role: str = "user"):
         if message:
             self.add_message(message, role)

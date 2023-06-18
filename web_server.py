@@ -1,4 +1,5 @@
 import base64
+import copy
 import json
 import aiohttp
 from aiohttp import web
@@ -20,7 +21,7 @@ class Session:
     async def set_agent(self, agent, messages=[]):
         if self.agent is not None:
             await self.destroy_agent()
-        self.state = {'agents': {
+        self.state = {'model': agent.args.model, 'agents': {
             agent.name: {
                 'id': agent.name,
                 'messages': messages
@@ -39,10 +40,15 @@ class Session:
     def update(self, req: web.Request, ws: web.WebSocketResponse):
         self.req = req
         self.ws = ws
-    
-    async def set_state(self, id, state, usage: dict):
+
+    async def set_property(self, key, value):
+        self.state[key] = value
+        await self.send_to_client({key: value})
+
+    async def set_state(self, id, state, usage: dict | None = None):
         self.state['state'] = state
-        self.state['usage'] = usage
+        if usage is not None:
+            self.state['usage'] = usage
         await self.send_to_client({'state': state, 'id': id})
 
     async def get_input(self, id, message):
@@ -142,6 +148,9 @@ class WebServer:
                 inmsg = json.loads(msg.data)
                 if inmsg.get('restart'):
                     print('Restarting agent')
+                    model=inmsg.get('model')
+                    if model:
+                        self.args.model = model
                     await s.remove_agent()
                     await self.add_agent(self.args, s)
                 elif inmsg['id'] and s.pending_input:

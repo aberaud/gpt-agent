@@ -8,7 +8,7 @@ import datetime
 import traceback
 from typing import Optional
 #import yaml
-from chat import ChatSession, get_total_usage
+from chat import ChatSession, get_total_usage, get_model_list
 from web_server import WebServer, Session
 from search import search
 from asyncio import CancelledError, Queue
@@ -426,9 +426,12 @@ async def execute_chat(args, session: Session):
             shutil.rmtree(file_name)
 
     context = {}
-
+    
     agent = Agent(args, web_server=session, context=context)
     await session.set_agent(agent, messages=[Agent.parse_message(message) for message in agent.chat_session.messages])
+    await session.set_property('models', await get_model_list())
+    await session.set_property('usage', get_total_usage())
+    await session.send_init_state()
     await agent.get_human_input("Main goal", "main_goal")
     await agent.run()
     await session.set_state(agent.name, 'completed', usage=get_total_usage())
