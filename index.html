@@ -26,17 +26,26 @@ body {
   overflow-x: auto;
   white-space: nowrap;
 }
-.agent-container {
-    width: calc(576px - 3rem);
-    min-width: calc(576px - 3rem);
-    margin-left: .5rem;
-    margin-right: .5rem;
+:root {
+    --agent-width: calc(576px - 3rem);
 }
 @media (max-width: 576px) {
-    .agent-container {
-        width: calc(100% - 1rem);
-        min-width: calc(100% - 1rem);
+    :root {
+        --agent-width: calc(100% - 1rem);
     }
+}
+.agent-container {
+    flex-shrink: 0;
+    max-width: var(--agent-width);
+    min-width: 0;
+    width: var(--agent-width);
+    margin-left: .5rem;
+    margin-right: .5rem;
+    overflow: hidden;
+}
+.agent {
+    width: var(--agent-width);
+    min-width: var(--agent-width);
 }
 .agent {
     max-height: 100%;
@@ -75,10 +84,14 @@ const default_command = {
     message: msg => {
         if (typeof(msg) == 'string') {
             return `<pre>${escapeHtml(msg)}</pre>`
-        } else {
+        } else if (msg.command) {
             return `<b>${msg.command} ${Object.values(msg.arguments).join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
+        } else {
+            return escapeHtmlFull(msg.content)
         }
-    }
+    },
+    result: msg => `<pre>${escapeHtml(msg.content)}</pre>`,
+    resultIcon: msg => 'bi-check-circle',
 }
 const commands = {
     COMPLETE: {
@@ -98,19 +111,22 @@ const commands = {
             } else {
                 return `<b>${msg.arguments.filename}</b><pre>${escapeHtml(msg.content)}</pre>`
             }
-        }
+        },
+        result: msg => `<pre>${escapeHtml(msg.content)}</pre>`
     },
     RUN: {
         icon: msg => 'bi-terminal-fill',
-        message: msg => `<b>Bash</b><pre><code class="language-bash">${hljs.highlight(msg.arguments.content, {language: 'bash'}).value}</code></pre>`
+        message: msg => `<b>Bash</b><pre><code class="language-bash">${hljs.highlight(msg.arguments.content || msg.arguments, {language: 'bash'}).value}</code></pre>`
     },
     PYTHON: {
         icon: msg => 'bi-terminal-fill',
-        message: msg => `<b>Python</b><pre><code class="language-python">${hljs.highlight(msg.arguments.content, {language: 'python'}).value}</code></pre>`
+        message: msg => `<b>Python</b><pre><code class="language-python">${hljs.highlight(msg.arguments.content || msg.arguments, {language: 'python'}).value}</code></pre>`
     },
     ASSIGN: {
         icon: msg => 'bi-diagram-3-fill',
-        message: msg => `<b>${msg.arguments.agent_id}</b><br/>${escapeHtmlFull(msg.arguments.content)}`
+        message: msg => `<b>${msg.arguments.agent_id}</b><br/>${escapeHtmlFull(msg.arguments.content)}`,
+        resultIcon: msg => msg.content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle-fill text-danger',
+        result: msg => escapeHtmlFull(msg.content.content)
     },
     REQUEST: {
         icon: msg => 'bi-question-circle-fill',
@@ -144,10 +160,7 @@ const commands = {
 const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
-
-  // These options are needed to round to whole numbers if that's what you want.
-  //minimumFractionDigits: 0, // (this suffices for whole numbers, but will print 2500.10 as $2,500.1)
-  //maximumFractionDigits: 0, // (causes 2500.99 to be printed as $2,501)
+  maximumFractionDigits: 3,
 });
 const escapeHtml = unsafe => unsafe ? unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;') : ''
 const escapeHtmlFull = unsafe => unsafe ? escapeHtml(unsafe).replaceAll('\n', '<br/>') : ''
@@ -158,12 +171,11 @@ const htmlToElement = html => {
     return template.content.firstChild;
 }
 const messageRow = message => {
-    const display = {...default_command, ...(commands[message.function_call && message.function_call.name] || {})}
-    console.log(message, display)
+    const e = message.function_call || message
+    const display = {...default_command, ...(commands[e.name] || {})}
     return `<li class="list-group-item message ${getClass(message.role)}">
-        <i class="${display.icon(message.function_call)} flex-shrink-0 me-2"></i>
-        ${message.function_call && display.message(message.function_call) || ''}
-        ${message.content && escapeHtmlFull(message.content) || ''}
+        <i class="${(e === message ? display.resultIcon(e) : display.icon(e))} flex-shrink-0 me-2"></i>
+        ${(e === message ? display.result(e) : display.message(e)) || ''}
     </li>`
 }
 
@@ -178,13 +190,20 @@ const agentCard = agent =>
 const addResult = (container, agent) => {
     const card = document.createElement('div')
     card.id = `agent-${agent.id}-container`
-    card.classList.add('agent-container')
     if (agent.completed)
         card.classList.add('agent-complete')
     card.innerHTML = agentCard(agent)
     container.insertBefore(card, container.firstChild)
-    card.animate([{ opacity: 0, transform: 'scale(.8)', width: '80px' }, {}],
-        { duration: 400, easing: 'ease-out' })
+    w = card.offsetWidth
+    card.classList.add('agent-container')
+    card.animate([
+        { opacity: 0, maxWidth: 0 },
+        { opacity: 1, maxWidth: "var(--agent-width)" }
+    ], {
+        duration: 400,
+        easing: "ease-out",
+        fill: "forwards"
+    })
     return card
 }
 const updateCard = (card, agent) => {
@@ -234,7 +253,7 @@ const new_websocket = (dispatch) => {
             if (typeof m.data == "string") {
                 const data = JSON.parse(m.data)
                 console.log(data)
-                const agents = (data.agents && data.agents !== undefined) ? Object.values(data.agents) : []
+                const agents = (data.agents && data.agents !== undefined) ? Object.values(data.agents).reverse() : []
                 if (agents) {
                     for (const agent of agents) {
                         const lastMessage = agent.messages[agent.messages.length - 1]
@@ -243,11 +262,13 @@ const new_websocket = (dispatch) => {
                         if (card)
                             updateCard(card, agent)
                         else
-                            container.prepend(addResult(container, agent))
+                            container.insertBefore(addResult(container, agent), container.querySelector('.agent-complete') || null)
                     }
-                    Array.from(container.getElementsByClassName('agent-complete')).reverse().forEach(agent => {
-                        container.removeChild(agent)
-                        container.appendChild(agent)
+                    Array.from(container.getElementsByClassName('agent-complete')).forEach(agent => {
+                        if (agent.nextElementSibling && !agent.nextElementSibling.classList.contains('agent-complete')) {
+                            container.removeChild(agent)
+                            container.appendChild(agent)
+                        }
                     })
                 }
                 if (data.usage) {
@@ -261,13 +282,12 @@ const new_websocket = (dispatch) => {
                     model.textContent = data.model
                 }
                 if (data.state == 'message') {
-                    //let card = document.getElementById(`agent-${data.id}`)
-                    const card = document.getElementById(`agent-${data.id}-container`)
+                    let card = document.getElementById(`agent-${data.id}-container`)
                     const completed = data.message.function_call && data.message.function_call.name == 'COMPLETE'
                     if (completed) loader.remove()
                     if (!card) {
                         card = addResult(container, { id: data.id, messages: [data.message], completed: completed })
-                        container.prepend(card)
+                        container.insertBefore(card, container.querySelector('.agent-complete') || null)
                     } else {
                         const messages = card.querySelector('.messages')
                         const newMessage = htmlToElement(messageRow(data.message))
@@ -291,7 +311,6 @@ const new_websocket = (dispatch) => {
                     header.innerHTML = `<h5 class="card-title">${data.id}</h5>${inputBox(data.id, data.message)}`
                 } else if (data.state == 'running') {
                     loader.remove()
-                    console.log(agents)
                     const lastAgent = (agents && agents.length > 0) ? agents[agents.length - 1].id : data.id
                     textMsg.textContent = `Agent running: ${lastAgent}`
                     const card = document.getElementById(`agent-${lastAgent}`)
@@ -316,7 +335,7 @@ const new_websocket = (dispatch) => {
 <body class="bg-dark-subtle">
     <header>
         <div id="searchbar" class="container">
-            <div class="card mt-1">
+            <div class="card mt-2">
                 <div class="row" style="align-items: center; padding: .5rem;">
                     <div class="col-lg col-lg-auto"><h1 id="main-title" class="display-6">Connecting...</h1>
                     <div id="loader" class="spinner-border" role="status">

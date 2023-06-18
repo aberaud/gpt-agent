@@ -68,7 +68,7 @@ async def assign_callback(agent, args):
 
 async def run_callback(agent, args):
     print(f"RUN: {args}")
-    return await agent.handle_agent_process(args['content'])
+    return await agent.handle_agent_process(args['content'] if type(args) is dict else args)
 
 async def python_callback(agent, args):
     content = args['content']
@@ -283,14 +283,31 @@ class Agent:
     @staticmethod
     def parse_message(message):
         function_call = message.get("function_call")
+        role = message.get("role")
         if function_call:
+            arguments = function_call.get("arguments")
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                print(f"[WARN] Couldn't parse arguments: {arguments}")
             return {
-                'role': message['role'],
+                'role': role,
                 'content': message['content'],
                 'function_call': {
                     'name': function_call["name"],
-                    'arguments': json.loads(function_call["arguments"])
+                    'arguments': arguments
                 }
+            }
+        if role == 'function':
+            content = message.get("content")
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                pass
+            return {
+                'role': role,
+                'name': message.get('name'),
+                'content': content
             }
         return message
 
@@ -322,7 +339,11 @@ class Agent:
                     function_call = response.get("function_call")
                     if function_call:
                         function_name = function_call["name"]
-                        function_args = json.loads(function_call["arguments"])
+                        function_args = function_call["arguments"]
+                        try:
+                            function_args = json.loads(function_args)
+                        except json.JSONDecodeError:
+                            print(f"[WARN] Couldn't parse arguments: {function_args}")
                         await self.handle_agent_command(function_name, function_args)
                 #except ParseError as e:
                 #    print(f"[ERROR] Couldn't parse agent's message: {response}")
@@ -448,6 +469,6 @@ async def main(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Start the Argent server.")
-    parser.add_argument("-m", "--model", default="gpt-4-0613", help="Specify the model to use (default: gpt-4).")
+    parser.add_argument("-m", "--model", default="gpt-3.5-turbo-16k-0613", help="Specify the default model to use.")
     args = parser.parse_args()
     asyncio.run(main(args))

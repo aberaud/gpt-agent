@@ -30,7 +30,7 @@ async def get_model_list():
     return models
 
 class ChatSession:
-    def __init__(self, model: str='gpt-4-0613', system_prompt: Optional[str | list[str]]=None, commands: dict={}):
+    def __init__(self, model: str='gpt-3.5-turbo-16k-0613', system_prompt: Optional[str | list[str]]=None, commands: dict={}):
         self.model = model
         self.messages = []
         self.commands = [{
@@ -115,10 +115,9 @@ if __name__ == "__main__":
     import asyncio
     import argparse
     parser = argparse.ArgumentParser(description="Interact with the chat session using a CLI.")
-    parser.add_argument("-m", "--model", default="gpt-4-0613", help="Specify the model to use (default: gpt-4).")
+    parser.add_argument("-m", "--model", default="gpt-3.5-turbo-16k-0613", help="Specify the model to use.")
     parser.add_argument("-sp", "--system-prompt", help="Optional system prompt to start the conversation.")
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(start_chat(args))
-
