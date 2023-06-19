@@ -20,7 +20,7 @@ async def get(url, params={}, headers = {'Accept': 'application/json'}):
             if response.status == 200:
                 return await response.json()
             else:
-                print("Error:", response.status)
+                print("Error:", response.status, await response.text())
                 return None
 
 def filer_organic_result(result):
@@ -50,7 +50,7 @@ async def get_serp_data(query):
 
 async def get_kg_data(query):
     json_data = await get('https://kgsearch.googleapis.com/v1/entities:search', {
-        query: query,
+        'query': query,
         'key': GOOGLE_API_KEY,
     })
     items = json_data['itemListElement']

@@ -90,8 +90,8 @@ const default_command = {
             return escapeHtmlFull(msg.content)
         }
     },
-    result: msg => `<pre>${escapeHtml(msg.content)}</pre>`,
-    resultIcon: msg => 'bi-check-circle',
+    result: msg => msg.name ? `<pre>${escapeHtml(msg.content)}</pre>` : escapeHtmlFull(msg.content),
+    resultIcon: msg => msg.name ? 'bi-check-circle' : 'bi-chat-left-dots-fill',
 }
 const commands = {
     COMPLETE: {
@@ -131,6 +131,10 @@ const commands = {
     REQUEST: {
         icon: msg => 'bi-question-circle-fill',
         message: msg => `Request for ${msg.arguments.supervisor}<br/><br/><b>${escapeHtmlFull(msg.arguments.content)}</b>`
+    },
+    QUERY: {
+        icon: msg => 'bi-search',
+        message: msg => `<b>${escapeHtmlFull(msg.arguments.source)}</b><br/>${escapeHtmlFull(msg.arguments.content)}`
     },
     INSTRUCTIONS: {
         icon: msg => 'bi-journal-check',
@@ -172,7 +176,8 @@ const htmlToElement = html => {
 }
 const messageRow = message => {
     const e = message.function_call || message
-    const display = {...default_command, ...(commands[e.name] || {})}
+    const name = e.name
+    const display = {...default_command, ...(commands[name] || {})}
     return `<li class="list-group-item message ${getClass(message.role)}">
         <i class="${(e === message ? display.resultIcon(e) : display.icon(e))} flex-shrink-0 me-2"></i>
         ${(e === message ? display.result(e) : display.message(e)) || ''}
@@ -218,7 +223,11 @@ const onRestart = (model) => {
     console.log('onRestart', model)
     const container = document.getElementById('main-content')
     container.innerHTML = ''
-    ws.send(JSON.stringify({ restart: true, model: model }))
+    if (ws.readyState == 3) {
+        ws = new_websocket()
+    } else {
+        ws.send(JSON.stringify({ restart: true, model: model }))
+    }
     return false
 }
 const onSubmit = (e, id) => {
@@ -360,7 +369,7 @@ const new_websocket = (dispatch) => {
     </header>
     <div class="content" id="main-content"></div>
     <script>
-const ws = new_websocket()
+let ws = new_websocket()
     </script>
 </body>
 </html>

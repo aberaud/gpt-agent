@@ -85,7 +85,6 @@ class Session:
         await self.send_to_client(self.state)
     
     async def add_message(self, id: str, data: dict, usage: dict):
-        print(self.state)
         self.state['usage'] = usage
         agent = self.state['agents'].get(id)
         if agent is None:
