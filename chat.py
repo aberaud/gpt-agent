@@ -11,16 +11,20 @@ def get_price(model: str, usage: dict) -> float:
     PRICE_PER_KTOKEN_COMPLETION = .06 if model.startswith('gpt-4') else 0.002
     return (usage['prompt_tokens'] * PRICE_PER_KTOKEN_PROMPT + usage['completion_tokens'] * PRICE_PER_KTOKEN_COMPLETION) / 1000.
 
-total_usage = {
-    'prompt_tokens': 0,
-    'completion_tokens': 0,
-    'total_tokens': 0,
-    'total_dollars': 0,
-}
+total_usage = {}
 models = None
 
 def get_total_usage():
-    return total_usage
+    tot_usage = {
+        'prompt_tokens': 0,
+        'completion_tokens': 0,
+        'total_tokens': 0,
+        'total_dollars': 0,
+    }
+    for usage in total_usage.values():
+        for key, value in usage.items():
+            tot_usage[key] += value
+    return tot_usage
 
 async def get_model_list():
     global models
@@ -64,14 +68,12 @@ class ChatSession:
                 )
 
                 usage = response.usage
+                mtot = total_usage.setdefault(self.model, {})
                 for key in self.usage.keys():
                     self.usage[key] += usage[key]
-                    total_usage[key] += usage[key]
-                total_usage['total_dollars'] = get_price(self.model, total_usage)
-                
-                print('Used: ${:.3f} ({} tokens)'.format(get_price(self.model, usage), usage['total_tokens']))
-                #print('Chat Session: ${:.3f} ({} tokens)'.format(get_price(self.model, self.usage), self.usage['total_tokens']))
-                print('Total: ${:.3f} ({} tokens)'.format(get_price(self.model, total_usage), total_usage['total_tokens']))
+                    mtot[key] = mtot.get(key, 0) + usage[key]
+                mtot['total_dollars'] = get_price(self.model, mtot)
+                print('Total:', total_usage)
 
                 rmsg = response.choices[0].message
                 self.messages.append(rmsg)
