@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import aiohttp
 from aiohttp import web
 import asyncio
@@ -96,11 +97,11 @@ class WebServer:
         self.args = args
         self.add_agent = add_agent
         self.app = web.Application()
-        self.index_content = open('/app/index.html', 'r').read()
+        dir = os.path.dirname(__file__)
+        self.index_content = open(os.path.join(dir, 'index.html'), 'r').read()
         fernet_key = fernet.Fernet.generate_key()
         secret_key = base64.urlsafe_b64decode(fernet_key)
         jar = EncryptedCookieStorage(secret_key)
-        # jar = aiohttp_session
         aiohttp_session.setup(self.app, jar)
         self.app.add_routes([
             web.get('/', self.index),
