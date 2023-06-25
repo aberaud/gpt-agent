@@ -5,23 +5,30 @@ from typing import Optional
 from chat import ChatSession, get_total_usage
 from web_server import Session
 from asyncio import CancelledError
-from commands import commands
-from prompts import getSystemPrompt
+from prompts import getSystemPrompt, getCommands
 
 class Agent:
-    def __init__(self, args, web_server: Session, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None, context: dict={}):
+    def __init__(self, args, context, web_server: Session, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None):
         self.args = args
-        self.commands = {command['name']: command for command in commands}
+        self.commands = {command['name']: command for command in getCommands(role)}
         self.name = name
         self.web_server = web_server
         self.parent = parent
         self.context = context
         self.supervisor_path = ['human'] if parent is None else parent.supervisor_path + [parent.name]
+        self.chat_session = ChatSession(args.model, functions=self.commands)
+        self.stopped = False
         if prompt is None:
             prompt = getSystemPrompt(name, self.supervisor_path, role)
-        self.chat_session = ChatSession(args.model, prompt, commands=self.commands)
-        self.stopped = False
-    
+        self.prompt = prompt
+
+    async def init(self):
+        if isinstance(self.prompt, list):
+            for p in self.prompt:
+                await self.add_message(p, role="system")
+        elif self.prompt:
+            await self.add_message(self.prompt, role="system")
+
     @staticmethod
     def parse_message(message):
         function_call = message.get("function_call")
@@ -58,9 +65,9 @@ class Agent:
             if self.web_server:
                 await self.web_server.add_message(self.name, Agent.parse_message(message), usage=get_total_usage())
         except KeyboardInterrupt:
-            pass
+            raise
         except CancelledError:
-            pass
+            raise
         except Exception as e:
             print(f"[ERROR] Couldn't send update to web server")
             traceback.print_exc()
@@ -70,7 +77,7 @@ class Agent:
         self.stopped = True
 
     async def run(self):
-        print(f"Agent {self.name} ({self.chat_session.model}) created")
+        print(f"Agent {self.name} ({self.chat_session.model}) created. Functions: {self.commands.keys()}")
         await self.web_server.set_state(self.name, 'running', usage=get_total_usage())
         while not self.stopped:
             try:
@@ -87,13 +94,17 @@ class Agent:
                         except json.JSONDecodeError:
                             print(f"[WARN] Couldn't parse arguments: {function_args}")
                         await self.handle_agent_command(function_name, function_args)
+                except KeyboardInterrupt:
+                    raise
+                except CancelledError:
+                    raise
                 #except ParseError as e:
                 #    print(f"[ERROR] Couldn't parse agent's message: {response}")
                 #    self.chat_session.add_message(f"PARSE_ERROR\n{e}\nHint: always use the proper syntax `COMMAND arguments` and one of the documented commands. Retry your last message using the appropriate syntax.", "system")
                 except Exception as e:
                     print(f"[ERROR] Couldn't handle agent's message: {response}")
                     traceback.print_exc()
-                    self.chat_session.add_message(f"ERROR\n{e}", "system")
+                    await self.add_message(f"ERROR\n{type(e).__name__}: {e}", "system")
             except CancelledError:
                 break
             except KeyboardInterrupt:
@@ -110,8 +121,9 @@ class Agent:
         print(f"{message}: {user_input}")
         await self.add_message(json.dumps({ reply_type: user_input }))
 
-    async def handle_agent_command(self, command_name, args):
-        command = self.commands[command_name]
+    async def handle_agent_command(self, command_name: str, args):
+        #command = self.commands[command_name]
+        command = self.commands[command_name.upper()]
         # print(f"Handling command {command} with args {args}")
         result = await command["callback"](self, args)
         print(f"Command {command['name']} returned: {result}")
@@ -123,10 +135,16 @@ class Agent:
         #agent_history = [self.convert_message_for_subagent(h) for h in agent_history]
         return [h for h in agent_history if h is not None]
 
-    async def handle_agent_assign(self, sub_agent_id, task):
+    async def handle_agent_assign(self, sub_agent_id, task, messages: list[str]=[], role='subagent'):
+        sub_agent_id = self.context.new_agent_id(sub_agent_id)
         print(f"[ASSIGN] {sub_agent_id} {task}")
-        sub_agent = Agent(self.args, web_server=self.web_server, name=sub_agent_id, role='subagent', parent=self, context=self.context)
-        await sub_agent.add_message(json.dumps({"main_goal": task}), "user")
+        sub_agent = Agent(self.args, self.context, web_server=self.web_server, name=sub_agent_id, role=role, parent=self)
+        self.context.add_agent(sub_agent)
+        await sub_agent.init()
+        if task:
+            await sub_agent.add_message(json.dumps({"main_goal": task}))
+        for m in messages:
+            await sub_agent.add_message(m)
         await sub_agent.run()
         last_msg = sub_agent.chat_session.messages[-1]
         last_msg_parsed = last_msg.get("function_call")

@@ -90,7 +90,7 @@ commands = [
             "required": ["filename"],
         },
         "description": "Write to a file (overrides existing content, if any)",
-        "callback": write_callback
+        "callback": write_callback,
     },
     {
         "name": "REQUEST",
@@ -108,7 +108,7 @@ commands = [
             },
             "required": ["supervisor", "content"],
         },
-        "description": "Ask for more information to a supervisor (human or agent) - don't assign tasks or report status with this command",
+        "description": "Ask for more information to a supervisor (human or agent) - don't assign tasks or report status with this function.",
         "callback": request_callback
     },
     {
@@ -128,7 +128,7 @@ commands = [
             "required": ["agent_id", "content"],
         },
         "description": "Assign a task to another independent agent. Provide an id and a detailed description of the task including all required context.",
-        "callback": assign_callback
+        "callback": assign_callback,
     },
     {
         "name": "RUN",
@@ -143,7 +143,7 @@ commands = [
             "required": ["content"],
         },
         "description": "Run one or more shell command and get the output. Note that the shell is reset between each invocation.",
-        "callback": run_callback
+        "callback": run_callback,
     },
     {
         "name": "PYTHON",
@@ -158,7 +158,7 @@ commands = [
             "required": ["content"],
         },
         "description": "Run code or commands in an IPython shell (python 3.11). Use it to perform calculations, text manipulation, or other operations. The shell is reset between each invocation.",
-        "callback": python_callback
+        "callback": python_callback,
     },
     {
         "name": "QUERY",
@@ -179,6 +179,7 @@ commands = [
         "description": "Search for information online. Available sources: knowledge-graph, wikipedia, google",
         "example": "QUERY google\nParis",
         "callback": search_callback,
+        "properties": ['read']
     },
     {
         "name": "COMPLETE",
@@ -200,3 +201,9 @@ commands = [
         "callback": complete_callback
     }
 ]
+
+def getCommands(role: str):
+    if role == 'agent':
+        return [cmd for cmd in commands if not 'properties' in cmd or 'assign' in cmd['properties']]
+    elif role == 'subagent':
+        return commands

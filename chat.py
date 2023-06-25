@@ -34,14 +34,14 @@ async def get_model_list():
     return models
 
 class ChatSession:
-    def __init__(self, model: str='gpt-3.5-turbo-16k-0613', system_prompt: Optional[str | list[str]]=None, commands: dict={}):
+    def __init__(self, model: str='gpt-3.5-turbo-16k-0613', system_prompt: Optional[str | list[str]]=None, functions: dict={}):
         self.model = model
         self.messages = []
-        self.commands = [{
-                        'name': c['name'], 
-                        'description': c['description'],
-                        'parameters': c['parameters']
-                    } for c in commands.values()]
+        self.functions = [{
+            'name': c['name'], 
+            'description': c['description'],
+            'parameters': c['parameters']
+        } for c in functions.values()]
         self.usage = {
             'prompt_tokens': 0,
             'completion_tokens': 0,
@@ -60,12 +60,19 @@ class ChatSession:
         retry = 3
         while retry:
             try:
-                response = await openai.ChatCompletion.acreate(
-                    model=self.model,
-                    messages=self.messages,
-                    functions=self.commands,
-                    max_tokens=1000,
-                )
+                if self.functions:
+                    response = await openai.ChatCompletion.acreate(
+                        model=self.model,
+                        messages=self.messages,
+                        functions=self.functions,
+                        max_tokens=1000,
+                    )
+                else:
+                    response = await openai.ChatCompletion.acreate(
+                        model=self.model,
+                        messages=self.messages,
+                        max_tokens=1000,
+                    )
 
                 usage = response.usage
                 mtot = total_usage.setdefault(self.model, {})

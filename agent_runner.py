@@ -25,6 +25,23 @@ async def agent_worker(task_queue: Queue):
 
 task_queue = Queue()
 
+class AgentRunner:
+    def __init__(self, args, session: Session):
+        self.args = args
+        self.session = session
+        self.agents = {}
+
+    def new_agent_id(self, proposed_name: str):
+        if proposed_name in self.agents:
+            i = 1
+            while f"{proposed_name}_{i}" in self.agents:
+                i += 1
+            return f"{proposed_name}_{i}"
+        return proposed_name
+    
+    def add_agent(self, agent: Agent):
+        self.agents[agent.name] = agent
+
 async def add_agent(args, session: Session):
     session.task = asyncio.create_task(execute_chat(args, session))
     await task_queue.put(session.task)
@@ -37,13 +54,16 @@ async def execute_chat(args, session: Session):
         else:
             shutil.rmtree(file_name)
 
-    context = {}
+    context = AgentRunner(args, session)
     
+    await session.reset(args.model)
     agent = Agent(args, web_server=session, context=context)
-    await session.set_agent(agent, messages=[Agent.parse_message(message) for message in agent.chat_session.messages])
+    context.add_agent(agent)
+    await session.set_agent(agent)
     await session.set_property('models', await get_model_list())
     await session.set_property('usage', get_total_usage())
     await session.send_init_state()
+    await agent.init()
     await agent.get_human_input("Main goal", "main_goal")
     await agent.run()
     await session.set_state(agent.name, 'completed', usage=get_total_usage())

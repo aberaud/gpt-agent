@@ -241,14 +241,6 @@ const inputBox = (id, msg) => `<form onsubmit="return onSubmit(event, '${id}')">
             </form>`
 
 const new_websocket = (dispatch) => {
-    const container = document.getElementById('main-content')
-    const loader = document.getElementById('loader')
-    const textMsg = document.getElementById('main-title')
-    const usage = document.getElementById('usage')
-    const usageTokens = document.getElementById('usage-tokens')
-    const usageDollars = document.getElementById('usage-dollars')
-    const model = document.getElementById('model')
-    const modelList = document.getElementById('model-list')
     const ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws`)
     ws.binaryType = "blob"
     ws.onopen = () => {
@@ -266,12 +258,14 @@ const new_websocket = (dispatch) => {
                 if (agents) {
                     for (const agent of agents) {
                         const lastMessage = agent.messages[agent.messages.length - 1]
-                        agent.completed = lastMessage.function_call && lastMessage.function_call.name == 'COMPLETE'
-                        const card = document.getElementById(`agent-${agent.id}-container`)
-                        if (card)
-                            updateCard(card, agent)
-                        else
-                            container.insertBefore(addResult(container, agent), container.querySelector('.agent-complete') || null)
+                        if (lastMessage) {
+                            agent.completed = lastMessage.function_call && lastMessage.function_call.name == 'COMPLETE'
+                            const card = document.getElementById(`agent-${agent.id}-container`)
+                            if (card)
+                                updateCard(card, agent)
+                            else
+                                container.insertBefore(addResult(container, agent), container.querySelector('.agent-complete') || null)
+                        }
                     }
                     Array.from(container.getElementsByClassName('agent-complete')).forEach(agent => {
                         if (agent.nextElementSibling && !agent.nextElementSibling.classList.contains('agent-complete')) {
@@ -369,6 +363,14 @@ const new_websocket = (dispatch) => {
     </header>
     <div class="content" id="main-content"></div>
     <script>
+const container = document.getElementById('main-content')
+const loader = document.getElementById('loader')
+const textMsg = document.getElementById('main-title')
+const usage = document.getElementById('usage')
+const usageTokens = document.getElementById('usage-tokens')
+const usageDollars = document.getElementById('usage-dollars')
+const model = document.getElementById('model')
+const modelList = document.getElementById('model-list')
 let ws = new_websocket()
     </script>
 </body>

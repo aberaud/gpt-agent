@@ -1,5 +1,4 @@
 import base64
-import copy
 import json
 import aiohttp
 from aiohttp import web
@@ -18,24 +17,23 @@ class Session:
         self.task = None
         self.state = None
     
-    async def set_agent(self, agent, messages=[]):
-        if self.agent is not None:
-            await self.destroy_agent()
-        self.state = {'model': agent.args.model, 'agents': {
-            agent.name: {
-                'id': agent.name,
-                'messages': messages
-            }
-        }, 'state': 'idle'}
+    async def reset(self, model):
+        await self.remove_agent()
+        self.state = {'model': model, 'agents': {}, 'state': 'idle'}
+    
+    async def set_agent(self, agent):
+        agents = self.state['agents']
+        if agent.name not in agents:
+            agents[agent.name] = { 'id': agent.name, 'messages': [] }
         self.agent = agent
 
     async def remove_agent(self):
         if self.agent:
             await self.agent.stop()
-        if self.task:
-            self.task.cancel()
-            self.task = None
-        self.agent = None
+            if self.task:
+                self.task.cancel()
+                self.task = None
+            self.agent = None
 
     def update(self, req: web.Request, ws: web.WebSocketResponse):
         self.req = req
