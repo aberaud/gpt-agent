@@ -1,17 +1,41 @@
 
 import asyncio
-import pprint
+import json
 import subprocess
-from search import search
+from search import search, get_wikipedia_data
+from scrape import scrapeText
 
 async def info_callback(agent, args):
     print(f"INFO: {args}")
 
 async def search_callback(agent, args):
     print(f"QUERY: {args}")
-    results = await search(query=args['content'], source=args['source'])
+    source = args.get('source')
+    query = args['query']
+    results = await search(query=query, source=source)
     print(f"RESULTS: {results}")
-    return pprint.pformat(results)
+    return json.dumps(results, indent=2)
+    # agent_id = f'search_agent_{query}'
+    # result = await agent.handle_agent_assign(agent_id, args.get('request'), [json.dumps(results, indent=4)], role='search')
+    # print(f"RESULT: {result}")
+    # return result
+
+async def get_callback(agent, args):
+    print(f"GET: {args}")
+    source = args.get('source')
+    url = args['id']
+    if source == 'web':
+        results = await scrapeText(url)
+    else: #elif source == 'wikipedia':
+        results = await get_wikipedia_data(url)
+    
+    print(f"RESULTS: {results}")
+    if results is None:
+        return 'No results found.'
+    result = await agent.handle_agent_assign('search_agent', args.get('request'), [results], role='search')
+    print(f"RESULT: {result}")
+    return result
+
 
 async def write_callback(agent, args):
     file_name = args['filename']
@@ -70,7 +94,10 @@ async def python_callback(agent, args):
 
 async def complete_callback(agent, args):
     print(f"COMPLETE: {args}")
-    await agent.stop()
+    if agent.name == 'main':
+        await agent.get_human_input("Evaluate the agent's performance and provide feedback.", reply_type="evaluation")
+    else:
+        await agent.stop()
 
 commands = [
     {
@@ -122,12 +149,12 @@ commands = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "The task to assign to the agent"
+                    "description": "A complete description of the task to assign to the agent."
                 }
             },
             "required": ["agent_id", "content"],
         },
-        "description": "Assign a task to another independent agent. Provide an id and a detailed description of the task including all required context.",
+        "description": "Assign a task to another independent agent. Provide an id and a detailed description of the task including all required context, because the agent won't have access to any other information.",
         "callback": assign_callback,
     },
     {
@@ -161,25 +188,51 @@ commands = [
         "callback": python_callback,
     },
     {
-        "name": "QUERY",
+        "name": "SEARCH",
         "parameters": {
             "type": "object",
             "properties": {
                 "source": {
                     "type": "string",
-                    "description": "The source to query (knowledge-graph, wikipedia, google)",
+                    "description": "The source to query ('wikipedia' or 'google')",
                 },
-                "content": {
+                "query": {
                     "type": "string",
                     "description": "The query to send to the source",
+                },
+                "request": {
+                    "type": "string",
+                    "description": "The information to extract from the result. This is a prompt that will be provided to the search agent with the result.",
                 }
             },
-            "required": ["source", "content"],
+            "required": ["source", "content", "request"],
         },
-        "description": "Search for information online. Available sources: knowledge-graph, wikipedia, google",
+        "description": "Search for information online and get a list of results.",
         "example": "QUERY google\nParis",
         "callback": search_callback,
-        "properties": ['read']
+    },
+    {
+        "name": "GET",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "The source to get the url from ('web' or 'wikipedia')",
+                },
+                "id": {
+                    "type": "string",
+                    "description": "The identifier of the content to get (url or wikipedia page name)",
+                },
+                "request": {
+                    "type": "string",
+                    "description": "The information to extract from the result. This is a prompt that will be provided to the search agent with the result",
+                }
+            },
+            "required": ["source", "id", "request"],
+        },
+        "description": "Get information from a specific piece of content online, like any webpage or wikipedia page. The result is provided to the search agent with the request as a prompt",
+        "callback": get_callback,
     },
     {
         "name": "COMPLETE",
@@ -192,7 +245,7 @@ commands = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "The message to send to the supervisor",
+                    "description": "The message to send to the supervisor. This should include all relevant information to evaluate the task completion.",
                 }
             },
             "required": ["status", "content"],

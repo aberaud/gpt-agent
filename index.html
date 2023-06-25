@@ -132,9 +132,18 @@ const commands = {
         icon: msg => 'bi-question-circle-fill',
         message: msg => `Request for ${msg.arguments.supervisor}<br/><br/><b>${escapeHtmlFull(msg.arguments.content)}</b>`
     },
-    QUERY: {
+    SEARCH: {
         icon: msg => 'bi-search',
-        message: msg => `<b>${escapeHtmlFull(msg.arguments.source)}</b><br/>${escapeHtmlFull(msg.arguments.content)}`
+        message: msg => `${escapeHtmlFull(msg.arguments.source)}: <b>${escapeHtmlFull(msg.arguments.query)}</b><br/>${escapeHtmlFull(msg.arguments.request)}`,
+        //resultIcon: msg => msg.content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle-fill text-danger',
+        resultIcon: msg => 'bi-check-circle',
+        result: msg => escapeHtmlFull(msg.content.content || JSON.stringify(msg.content))
+    },
+    GET: {
+        icon: msg => 'bi-download',
+        message: msg => `${escapeHtmlFull(msg.arguments.source)}: <b>${escapeHtmlFull(msg.arguments.id)}</b><br/>${escapeHtmlFull(msg.arguments.request)}`,
+        resultIcon: msg => msg.content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle-fill text-danger',
+        result: msg => escapeHtmlFull(msg.content.content)
     },
     INSTRUCTIONS: {
         icon: msg => 'bi-journal-check',
