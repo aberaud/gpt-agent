@@ -1,22 +1,42 @@
+import json
+import os
 import unittest
+import aiounittest
 
-from app.agent import Agent
+from app.agent_runner import AgentRunner
 
-class TestAgent(unittest.TestCase):
+class TestAgent(aiounittest.AsyncTestCase):
 
-    def test_upper(self):
-        self.assertEqual('foo'.upper(), 'FOO')
+    async def test_hello_world(self):
+        args = {'model': 'gpt-3.5-turbo-16k-0613'}
+        context = AgentRunner(args)
+        await context.run("complete with message 'hello world'")
+        last_message = context.main_agent.chat_session.last_message()
+        self.assertIsNotNone(last_message)
+        print(last_message)
+        function_call = last_message.get('function_call')
+        self.assertIsNotNone(function_call)
+        arguments = function_call.get('arguments')
+        self.assertIsNotNone(arguments)
+        parsed = json.loads(arguments)
+        self.assertEqual(parsed['content'], 'hello world')
+    
 
-    def test_isupper(self):
-        self.assertTrue('FOO'.isupper())
-        self.assertFalse('Foo'.isupper())
+    async def test_create_directory(self):
+        args = {'model': 'gpt-3.5-turbo-16k-0613'}
+        context = AgentRunner(args)
+        await context.run("create empty directory 'test'")
+        last_message = context.main_agent.chat_session.last_message()
+        self.assertIsNotNone(last_message)
+        print(last_message)
+        function_call = last_message.get('function_call')
+        self.assertIsNotNone(function_call)
+        test_path = os.path.join(context.path, 'test')
+        self.assertTrue(os.path.exists(test_path))
+        self.assertTrue(os.path.isdir(test_path))
+        os.rmdir(test_path)
+        os.rmdir(context.path)
 
-    def test_split(self):
-        s = 'hello world'
-        self.assertEqual(s.split(), ['hello', 'world'])
-        # check that s.split fails when the separator is not a string
-        with self.assertRaises(TypeError):
-            s.split(2)
 
 if __name__ == '__main__':
     unittest.main()

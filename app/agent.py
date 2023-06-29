@@ -17,7 +17,7 @@ class Agent:
         self.parent = parent
         self.context = context
         self.supervisor_path = ['human'] if parent is None else parent.supervisor_path + [parent.name]
-        self.chat_session = ChatSession(args.model, functions=self.commands)
+        self.chat_session = ChatSession(args['model'], functions=self.commands)
         self.stopped = False
         if prompt is None:
             prompt = getSystemPrompt(name, self.supervisor_path, role)
@@ -79,7 +79,8 @@ class Agent:
 
     async def run(self):
         print(f"Agent {self.name} ({self.chat_session.model}) created. Functions: {self.commands.keys()}")
-        await self.web_server.set_state(self.name, 'running', usage=get_total_usage())
+        if self.web_server:
+            await self.web_server.set_state(self.name, 'running', usage=get_total_usage())
         while not self.stopped:
             try:
                 print(f"Agent {self.name} running...")
@@ -112,6 +113,8 @@ class Agent:
                 print("\nExiting.")
                 break
         #await self.send_update()
+        if self.web_server:
+            await self.web_server.set_state(self.name, 'completed', usage=get_total_usage())
         print(f"Agent {self.name} ended")
 
     async def add_message(self, message: str, role: str = "user", name: Optional[str] = None):

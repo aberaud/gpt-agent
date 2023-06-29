@@ -29,10 +29,10 @@ async def agent_worker(task_queue: Queue):
 task_queue = Queue()
 
 class AgentRunner:
-    def __init__(self, args, session: WebSession):
+    def __init__(self, args, session: WebSession = None):
         self.args = args
         time = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.name = f"{time}-{uuid.uuid4().hex[:4]}"
+        self.name = f"{time}-{uuid.uuid4().hex[:4]}" if 'name' not in args else args['name']
         self.path = os.path.join(os.getcwd(), self.name)
         os.mkdir(self.path)
         self.session = session
@@ -51,9 +51,12 @@ class AgentRunner:
             else:
                 await self.main_agent.add_message(json.dumps({ "main_goal": main_goal }))
             await self.main_agent.run()
-            await self.session.set_state(self.main_agent.name, 'completed', usage=get_total_usage())
+            #await self.session.set_state(self.main_agent.name, 'completed', usage=get_total_usage())
         finally:
             os.chdir(init_path)
+            # delete the directory if it's empty
+            if not os.listdir(self.path):
+                os.rmdir(self.path)
 
     def new_agent_id(self, proposed_name: str):
         if proposed_name in self.agents:
@@ -69,9 +72,6 @@ class AgentRunner:
     async def stop(self):
         for agent in self.agents.values():
             await agent.stop()
-        # delete the directory if it's empty
-        if not os.listdir(self.path):
-            os.rmdir(self.path)
 
     async def save_state(path: str):
         '''Save the state of the agent to a json file.'''

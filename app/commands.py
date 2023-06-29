@@ -95,7 +95,7 @@ async def python_callback(agent, args):
 
 async def complete_callback(agent, args):
     print(f"COMPLETE: {args}")
-    if agent.name == 'main':
+    if agent.name == 'main' and agent.web_server:
         await agent.get_human_input("Evaluate the agent's performance and provide feedback.", reply_type="evaluation")
     else:
         await agent.stop()

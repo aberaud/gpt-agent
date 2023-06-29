@@ -99,6 +99,9 @@ class ChatSession:
         self.messages.append(msg)
         return msg
 
+    def last_message(self):
+        return self.messages[-1]
+
 
 async def start_chat(args):
     chat_session = ChatSession(args.model, args.system_prompt)
