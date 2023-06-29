@@ -1,5 +1,7 @@
+results/
+.env
+
+# Python stuff
 __pycache__/
 *.py[cod]
 *$py.class
-
-.env
