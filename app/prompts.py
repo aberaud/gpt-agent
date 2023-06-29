@@ -1,7 +1,7 @@
 
 import datetime
 import os
-from commands import commands
+from app.commands import commands
 
 purpose_agent = """Analyze the goal, define a plan to achieve it, and delegate the required actions to other agents or perform them yourself, until the goal is achieved.
 Always check the result of your work and the work of other agents.

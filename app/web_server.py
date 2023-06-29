@@ -9,7 +9,7 @@ from cryptography import fernet
 import aiohttp_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
-class Session:
+class WebSession:
     def __init__(self, req: web.Request, ws: web.WebSocketResponse, session: aiohttp_session.Session):
         self.req = req
         self.session = session
@@ -19,16 +19,16 @@ class Session:
         self.state = None
     
     async def reset(self, model):
-        await self.remove_agent()
+        await self.stop()
         self.state = {'model': model, 'agents': {}, 'state': 'idle'}
     
     async def set_agent(self, agent):
-        agents = self.state['agents']
-        if agent.name not in agents:
-            agents[agent.name] = { 'id': agent.name, 'messages': [] }
+        # agents = self.state['agents']
+        # if agent.name not in agents:
+        #     agents[agent.name] = { 'id': agent.name, 'messages': [] }
         self.agent = agent
 
-    async def remove_agent(self):
+    async def stop(self):
         if self.agent:
             await self.agent.stop()
             if self.task:
@@ -92,10 +92,10 @@ class Session:
         await self.send_to_client({'state': 'message', 'id': id, 'message': data, 'usage': usage})
 
 class WebServer:
-    def __init__(self, args, add_agent):
-        self.current_sessions: dict[str, Session] = dict()
+    def __init__(self, args, on_new_session):
+        self.current_sessions: dict[str, WebSession] = dict()
         self.args = args
-        self.add_agent = add_agent
+        self.on_new_session = on_new_session
         self.app = web.Application()
         dir = os.path.dirname(__file__)
         self.index_content = open(os.path.join(dir, 'index.html'), 'r').read()
@@ -131,9 +131,9 @@ class WebServer:
         sid = session.get('id', str(id(session)))
         s = self.current_sessions.get(sid)
         if not s:
-            s = Session(request, ws, session)
+            s = WebSession(request, ws, session)
             self.current_sessions[sid] = s
-            await self.add_agent(self.args, s)
+            await self.on_new_session(self.args, s)
         else:
             s.update(request, ws)
             await s.send_init_state()
@@ -149,8 +149,8 @@ class WebServer:
                     model=inmsg.get('model')
                     if model:
                         self.args.model = model
-                    await s.remove_agent()
-                    await self.add_agent(self.args, s)
+                    await s.stop()
+                    await self.on_new_session(self.args, s)
                 elif inmsg['id'] and s.pending_input:
                     s.pending_input.set_result(inmsg['message'])
             elif msg.type == aiohttp.WSMsgType.ERROR:

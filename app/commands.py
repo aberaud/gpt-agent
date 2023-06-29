@@ -2,8 +2,9 @@
 import asyncio
 import json
 import subprocess
-from search import search, get_wikipedia_data
-from scrape import scrapeText
+
+from app.search import search, get_wikipedia_data
+from app.scrape import scrapeText
 
 async def info_callback(agent, args):
     print(f"INFO: {args}")
@@ -149,12 +150,12 @@ commands = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "A complete description of the task to assign to the agent."
+                    "description": "A complete description of the task to assign to the agent. Note that the agent won't have access to any other information or context about the task."
                 }
             },
             "required": ["agent_id", "content"],
         },
-        "description": "Assign a task to another independent agent. Provide an id and a detailed description of the task including all required context, because the agent won't have access to any other information.",
+        "description": "Assign a task to another independent agent. Provide an id and a detailed description of the task including all required context for the agent, because the agent won't have access to any other information.",
         "callback": assign_callback,
     },
     {
@@ -250,7 +251,7 @@ commands = [
             },
             "required": ["status", "content"],
         },
-        "description": "Notify task completion (either success or failure), providing your supervisor with a corresponding 'completed' message. Provide all relevent information about what you did in the message. If you are stuck in a loop, complete with failure.",
+        "description": "Notify task completion (either success or failure), providing your supervisor with a corresponding 'completed' message. Provide all relevent information about what you did in the message, because your supervisor won't have access to any other message you wrote. If you are stuck in a loop, complete with failure.",
         "callback": complete_callback
     }
 ]

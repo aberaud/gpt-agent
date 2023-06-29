@@ -1,11 +1,14 @@
 import asyncio
+from datetime import datetime
+import json
 import os
-import shutil
 import traceback
-from chat import get_total_usage, get_model_list
-from web_server import WebServer, Session
+import uuid
 from asyncio import CancelledError, Queue
-from agent import Agent
+
+from app.agent import Agent
+from app.chat import get_total_usage, get_model_list
+from app.web_server import WebServer, WebSession
 
 async def agent_worker(task_queue: Queue):
     while True:
@@ -26,10 +29,31 @@ async def agent_worker(task_queue: Queue):
 task_queue = Queue()
 
 class AgentRunner:
-    def __init__(self, args, session: Session):
+    def __init__(self, args, session: WebSession):
         self.args = args
+        time = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.name = f"{time}-{uuid.uuid4().hex[:4]}"
+        self.path = os.path.join(os.getcwd(), self.name)
+        os.mkdir(self.path)
         self.session = session
-        self.agents = {}
+        self.agents: dict[str, Agent] = {}
+        self.main_agent = Agent(args, web_server=session, context=self)
+        self.add_agent(self.main_agent)
+        print(f"Created agent runner {self.name} in path {self.path}")
+    
+    async def run(self, main_goal: str | None = None):
+        init_path = os.getcwd()
+        os.chdir(self.path)
+        try:
+            await self.main_agent.init()
+            if main_goal is None:
+                await self.main_agent.get_human_input("Main goal", "main_goal")
+            else:
+                await self.main_agent.add_message(json.dumps({ "main_goal": main_goal }))
+            await self.main_agent.run()
+            await self.session.set_state(self.main_agent.name, 'completed', usage=get_total_usage())
+        finally:
+            os.chdir(init_path)
 
     def new_agent_id(self, proposed_name: str):
         if proposed_name in self.agents:
@@ -42,31 +66,31 @@ class AgentRunner:
     def add_agent(self, agent: Agent):
         self.agents[agent.name] = agent
 
-async def add_agent(args, session: Session):
+    async def stop(self):
+        for agent in self.agents.values():
+            await agent.stop()
+        # delete the directory if it's empty
+        if not os.listdir(self.path):
+            os.rmdir(self.path)
+
+    async def save_state(path: str):
+        '''Save the state of the agent to a json file.'''
+
+
+async def add_agent(args, session: WebSession):
     session.task = asyncio.create_task(execute_chat(args, session))
     await task_queue.put(session.task)
+    
 
-async def execute_chat(args, session: Session):
-    # Delete every file and directory in the current directory
-    for file_name in os.listdir():
-        if os.path.isfile(file_name):
-            os.remove(file_name)
-        else:
-            shutil.rmtree(file_name)
+async def execute_chat(args, session: WebSession):
+    await session.reset(args.model)
 
     context = AgentRunner(args, session)
-    
-    await session.reset(args.model)
-    agent = Agent(args, web_server=session, context=context)
-    context.add_agent(agent)
-    await session.set_agent(agent)
+    await session.set_agent(context)
     await session.set_property('models', await get_model_list())
     await session.set_property('usage', get_total_usage())
     await session.send_init_state()
-    await agent.init()
-    await agent.get_human_input("Main goal", "main_goal")
-    await agent.run()
-    await session.set_state(agent.name, 'completed', usage=get_total_usage())
+    await context.run()
     print("Completed")
 
 async def main(args):

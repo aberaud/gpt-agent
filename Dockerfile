@@ -19,4 +19,5 @@ RUN adduser \
 USER $USER
 WORKDIR /project
 EXPOSE 8080
+ENV PYTHONPATH=/
 CMD ["python", "/app/agent_runner.py"]

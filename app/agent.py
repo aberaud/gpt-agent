@@ -2,13 +2,14 @@ import asyncio
 import json
 import traceback
 from typing import Optional
-from chat import ChatSession, get_total_usage
-from web_server import Session
 from asyncio import CancelledError
-from prompts import getSystemPrompt, getCommands
+
+from app.chat import ChatSession, get_total_usage
+from app.web_server import WebSession
+from app.prompts import getSystemPrompt, getCommands
 
 class Agent:
-    def __init__(self, args, context, web_server: Session, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None):
+    def __init__(self, args, context, web_server: WebSession, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None):
         self.args = args
         self.commands = {command['name']: command for command in getCommands(role)}
         self.name = name
@@ -149,6 +150,8 @@ class Agent:
         last_msg = sub_agent.chat_session.messages[-1]
         last_msg_parsed = last_msg.get("function_call")
         print(f"[ASSIGN] {sub_agent_id} completed: {last_msg_parsed}")
+        if self.web_server:
+            await self.web_server.set_state(self.name, 'running')
         return last_msg_parsed and last_msg_parsed['arguments']
 
     async def handle_agent_process(self, command):
