@@ -14,20 +14,22 @@ Optional:
 
 ## Usage
 
-### Using docker compose
+### Using docker compose (recommended)
 ```bash
 docker-compose build
 docker-compose up
 ```
 
-### Using docker
+### Using docker directly
+You can place your .env file in the app directory.
+
 ```bash
 docker build -t gpt-agent .
 docker run -p 8080:8080 -v $(pwd)/results:/project -it gpt-agent
 ```
 
 ### Run locally
-Note that running the agent outside of a container is not recommended
+Note that running the agent outside of a container is not recommended.
 
 Install the dependencies using pip:
 ```bash
@@ -37,4 +39,3 @@ pip install -r requirements.txt
 ```bash
 python3 app/agent.py
 ```
-
