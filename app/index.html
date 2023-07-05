@@ -140,7 +140,7 @@ const commands = {
         result: msg => escapeHtmlFull(msg.content.content || JSON.stringify(msg.content))
     },
     DRAW: {
-        icon: msg => 'bi-pencil-fill',
+        icon: msg => 'bi-brush-fill',
         message: msg => `<b>${msg.arguments.prompt}</b>`,
         result: msg => `<img class="card-img" src="${msg.content}"/>`,
         resultIcon: msg => 'bi-check-circle'
