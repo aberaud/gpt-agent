@@ -5,6 +5,7 @@ from typing import Optional
 from asyncio import CancelledError
 
 from app.chat import ChatSession, get_total_usage
+from app.commands import AgentParseError
 from app.web_server import WebSession
 from app.prompts import getSystemPrompt, getCommands
 
@@ -17,7 +18,7 @@ class Agent:
         self.parent = parent
         self.context = context
         self.supervisor_path = ['human'] if parent is None else parent.supervisor_path + [parent.name]
-        self.chat_session = ChatSession(args['model'], functions=self.commands)
+        self.chat_session = ChatSession(args.model, functions=self.commands)
         self.stopped = False
         if prompt is None:
             prompt = getSystemPrompt(name, self.supervisor_path, role)
@@ -94,8 +95,11 @@ class Agent:
                         try:
                             function_args = json.loads(function_args)
                         except json.JSONDecodeError:
-                            print(f"[WARN] Couldn't parse arguments: {function_args}")
+                            raise AgentParseError(f"Couldn't parse arguments: {function_args}")
                         await self.handle_agent_command(function_name, function_args)
+                except AgentParseError as e:
+                    print(f"[ERROR] Couldn't parse agent's message: {response}")
+                    await self.add_message(f"PARSE_ERROR\n{e}\nRetry your last message using the appropriate syntax.", "system")
                 except KeyboardInterrupt:
                     raise
                 except CancelledError:
@@ -139,7 +143,7 @@ class Agent:
         #agent_history = [self.convert_message_for_subagent(h) for h in agent_history]
         return [h for h in agent_history if h is not None]
 
-    async def handle_agent_assign(self, sub_agent_id, task, messages: list[str]=[], role='subagent'):
+    async def handle_agent_assign(self, sub_agent_id, task, messages: list[str]=[], role='worker'):
         sub_agent_id = self.context.new_agent_id(sub_agent_id)
         print(f"[ASSIGN] {sub_agent_id} {task}")
         sub_agent = Agent(self.args, self.context, web_server=self.web_server, name=sub_agent_id, role=role, parent=self)

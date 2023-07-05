@@ -7,6 +7,9 @@ from app.search import search, get_wikipedia_data
 from app.scrape import scrapeText
 from app.chat import generate_image
 
+class AgentParseError(Exception):
+    pass
+
 async def info_callback(agent, args):
     print(f"INFO: {args}")
 
@@ -169,6 +172,10 @@ commands = [
                 "agent_id": {
                     "type": "string",
                     "description": "The id of the agent to assign the task to"
+                },
+                "role": {
+                    "type": "string",
+                    "description": "The role of the agent. Can be 'searcher', 'engineer' or 'worker' (the default)."
                 },
                 "content": {
                     "type": "string",

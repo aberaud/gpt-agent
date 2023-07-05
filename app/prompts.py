@@ -5,8 +5,8 @@ from app.commands import commands
 
 purpose_agent = """Analyze the goal, define a plan to achieve it, and delegate the required actions to other agents or perform them yourself, until the goal is achieved.
 Always check the result of your work and the work of other agents.
-Never report directly, instead use the 'COMPLETE' function to report completion of a task.
-There is no need to explain your action before performing them."""
+What you say will not be preserved, only the content provided to the 'COMPLETE' function will be used to judge or use your work.
+Always use the 'COMPLETE' function directly to report completion of a task."""
 
 #You are an autonomous agent whose objective is to achieve a provided goal.
 # Analyze the goal, plan to acheive it, breaking it down into smaller specific tasks to assign to other agents, until the goal is achieved.
@@ -14,6 +14,22 @@ There is no need to explain your action before performing them."""
 
 purpose_planner = """Your objective is to acheive a long-term goal.
 
+"""
+
+purpose_engineer = """You are a pragmatic software engineer.
+"""
+
+purpose_spec = """
+You are a super smart developer. You have been asked to make a specification for a program.
+
+Think step by step to make sure we get a high quality specification and we don't miss anything.
+First, be super explicit about what the program should do, which features it should have
+and give details about anything that might be unclear. **Don't leave anything unclear or undefined.**
+
+Second, lay out the names of the core classes, functions, methods that will be necessary,
+as well as a quick comment on their purpose.
+
+This specification will be used later as the basis for the implementation.
 """
 
 purpose_searcher = """Your objective is to find information by performing online searches and requesting other agents to analyze results."""
@@ -41,7 +57,7 @@ AGENT_TYPES={
         'prompt': [purpose_agent],
         'commands': '*'
     },
-    'subagent': {
+    'worker': {
         'prompt': [purpose_subagent],
         'commands': '*'
     },
@@ -51,7 +67,11 @@ AGENT_TYPES={
     },
     'searcher': {
         'prompt': [purpose_searcher],
-        'commands': ['SEARCH', 'COMPLETE']
+        'commands': ['SEARCH', 'GET', 'COMPLETE']
+    },
+    'engineer': {
+        'prompt': [purpose_engineer],
+        'commands': ['WRITE', 'RUN', 'PYTHON', 'ASSIGN', 'REQUEST', 'COMPLETE']
     },
 }
 
