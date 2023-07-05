@@ -5,6 +5,7 @@ import subprocess
 
 from app.search import search, get_wikipedia_data
 from app.scrape import scrapeText
+from app.chat import generate_image
 
 async def info_callback(agent, args):
     print(f"INFO: {args}")
@@ -37,6 +38,12 @@ async def get_callback(agent, args):
     print(f"RESULT: {result}")
     return result
 
+async def draw_callback(agent, args):
+    print(f"DRAW: {args}")
+    prompt = args['prompt']
+    image = await generate_image(prompt)
+    print(f"IMAGE: {image}")
+    return image
 
 async def write_callback(agent, args):
     file_name = args['filename']
@@ -119,6 +126,21 @@ commands = [
         },
         "description": "Write to a file (overrides existing content, if any)",
         "callback": write_callback,
+    },
+    {
+        "name": "DRAW",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "A detailed, graphic description of the image to generate"
+                },
+            },
+            "required": ["prompt"],
+        },
+        "description": "Generate an image from a prompt",
+        "callback": draw_callback,
     },
     {
         "name": "REQUEST",

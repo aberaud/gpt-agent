@@ -33,6 +33,14 @@ async def get_model_list():
         models = sorted([model.id for model in m.data if model.id.startswith('gpt')], reverse=True)
     return models
 
+async def generate_image(prompt: str):
+    response = await openai.Image.acreate(
+        prompt=prompt,
+        n=1,
+        size="1024x1024"
+    )
+    return response['data'][0]['url']
+
 class ChatSession:
     def __init__(self, model: str='gpt-3.5-turbo-16k-0613', system_prompt: Optional[str | list[str]]=None, functions: dict={}):
         self.model = model

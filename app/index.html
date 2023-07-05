@@ -139,6 +139,12 @@ const commands = {
         resultIcon: msg => 'bi-check-circle',
         result: msg => escapeHtmlFull(msg.content.content || JSON.stringify(msg.content))
     },
+    DRAW: {
+        icon: msg => 'bi-pencil-fill',
+        message: msg => `<b>${msg.arguments.prompt}</b>`,
+        result: msg => `<img class="card-img" src="${msg.content}"/>`,
+        resultIcon: msg => 'bi-check-circle'
+    },
     GET: {
         icon: msg => 'bi-download',
         message: msg => `${escapeHtmlFull(msg.arguments.source)}: <b>${escapeHtmlFull(msg.arguments.id)}</b><br/>${escapeHtmlFull(msg.arguments.request)}`,
