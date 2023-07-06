@@ -69,7 +69,7 @@ body {
 #main-menu {
     margin: 8px;
 }
-    </style>    
+    </style>
     <script>
 const getClass = role => {
     switch (role) {
@@ -144,7 +144,6 @@ const commands = {
     SEARCH: {
         icon: msg => 'bi-search',
         message: msg => `${escapeHtmlFull(msg.arguments.source)}: <b>${escapeHtmlFull(msg.arguments.query)}</b><br/>${escapeHtmlFull(msg.arguments.request)}`,
-        //resultIcon: msg => msg.content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle-fill text-danger',
         resultIcon: msg => 'bi-check-circle',
         result: msg => escapeHtmlFull(msg.content.content || JSON.stringify(msg.content))
     },
@@ -189,14 +188,14 @@ const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 3,
-});
+})
 const escapeHtml = unsafe => unsafe ? unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;') : ''
 const escapeHtmlFull = unsafe => unsafe ? escapeHtml(unsafe).replaceAll('\n', '<br/>') : ''
-const htmlToElement = html => {
-    var template = document.createElement('template');
-    html = html.trim();
-    template.innerHTML = html;
-    return template.content.firstChild;
+const $ = html => {
+    const template = document.createElement('template')
+    html = html.trim()
+    template.innerHTML = html
+    return template.content.firstChild
 }
 const messageRow = message => {
     const e = message.function_call || message
@@ -214,24 +213,22 @@ const agentCard = agent =>
             ${agent.messages.reverse().map(message => messageRow(message)).join('\n')}
         </ul>
     </div>`
-
+const animParams = {
+    duration: 400,
+    easing: "ease-out",
+    fill: "forwards"
+}
 const addResult = (container, agent) => {
     const card = document.createElement('div')
     card.id = `agent-${agent.id}-container`
     if (agent.completed)
         card.classList.add('agent-complete')
-    card.innerHTML = agentCard(agent)
+    const ac = $(agentCard(agent))
+    card.appendChild(ac)
     container.insertBefore(card, container.firstChild)
     w = card.offsetWidth
     card.classList.add('agent-container')
-    card.animate([
-        { opacity: 0, maxWidth: 0 },
-        { opacity: 1, maxWidth: "var(--agent-width)" }
-    ], {
-        duration: 400,
-        easing: "ease-out",
-        fill: "forwards"
-    })
+    card.animate([{ opacity: 0, maxWidth: 0 }, {}], animParams)
     return card
 }
 const updateCard = (card, agent) => {
@@ -257,19 +254,17 @@ const onRestart = (model) => {
 }
 const onSubmit = (e, id) => {
     const agent = document.getElementById(`agent-${id}`)
-    if (agent) {
-        //agent.classList.remove('text-bg-secondary')
+    if (agent)
         agent.classList.remove('text-bg-primary')
-    }
-
     ws.send(JSON.stringify({ id: id, message: e.target.querySelector('input').value }))
     e.target.remove()
     return false
 }
-const inputBox = (id, msg) => `<form onsubmit="return onSubmit(event, '${id}')">
-                <label class="form-label">${msg}</label>
-                <input type="text" class="form-control" autofocus>
-            </form>`
+const inputBox = (id, msg) => 
+    `<form onsubmit="return onSubmit(event, '${id}')">
+        <label class="form-label">${msg}</label>
+        <input type="text" class="form-control" autofocus>
+    </form>`
 
 const new_websocket = (dispatch) => {
     const ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}/ws`)
@@ -324,7 +319,7 @@ const new_websocket = (dispatch) => {
                         container.insertBefore(card, container.querySelector('.agent-complete') || null)
                     } else {
                         const messages = card.querySelector('.messages')
-                        const newMessage = htmlToElement(messageRow(data.message))
+                        const newMessage = $(messageRow(data.message))
                         messages.prepend(newMessage)
                         h = newMessage.offsetHeight
                         newMessage.animate([{ 'padding-top': 0, 'padding-bottom':0, height: 0 }, { height: h + 'px'}],
@@ -343,7 +338,7 @@ const new_websocket = (dispatch) => {
                     }
                     textMsg.textContent = `Waiting for human input: ${data.id}`
                     const header = card.querySelector('.card-header')
-                    const input = htmlToElement(inputBox(data.id, data.message))
+                    const input = $(inputBox(data.id, data.message))
                     while (header.children.length > 1) {
                         header.removeChild(header.children[1])
                     }
