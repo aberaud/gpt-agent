@@ -238,7 +238,9 @@ const updateCard = (card, agent) => {
     card.innerHTML = agentCard(agent)
     if (agent.completed) {
         card.classList.add('agent-complete')
-        card.querySelector('.agent').classList.add('text-bg-secondary')
+        const agent = card.querySelector('.agent')
+        agent.classList.remove('text-bg-primary')
+        agent.classList.add('text-bg-secondary')
     }
 }
 const onRestart = (model) => {
@@ -253,6 +255,12 @@ const onRestart = (model) => {
     return false
 }
 const onSubmit = (e, id) => {
+    const agent = document.getElementById(`agent-${id}`)
+    if (agent) {
+        //agent.classList.remove('text-bg-secondary')
+        agent.classList.remove('text-bg-primary')
+    }
+
     ws.send(JSON.stringify({ id: id, message: e.target.querySelector('input').value }))
     e.target.remove()
     return false
@@ -328,8 +336,9 @@ const new_websocket = (dispatch) => {
                 } else if (data.state == 'request') {
                     let card = document.getElementById(`agent-${data.id}`)
                     if (!card) {
-                        card = addResult(container, { id: data.id, messages: [] })
+                        const cardContainer = addResult(container, { id: data.id, messages: [] })
                         container.prepend(card)
+                        card = cardContainer.querySelector('.card')
                     }
                     textMsg.textContent = `Waiting for human input: ${data.id}`
                     const header = card.querySelector('.card-header')
@@ -338,6 +347,8 @@ const new_websocket = (dispatch) => {
                         header.removeChild(header.children[1])
                     }
                     header.appendChild(input)
+                    card.classList.remove('text-bg-secondary')
+                    card.classList.add('text-bg-primary')
                 } else if (data.state == 'running') {
                     loader.remove()
                     const lastAgent = (agents && agents.length > 0) ? agents[agents.length - 1].id : data.id
@@ -364,7 +375,7 @@ const new_websocket = (dispatch) => {
 <body class="bg-dark-subtle">
     <header>
         <div id="searchbar" class="container">
-            <div class="card mt-2 px-2">
+            <div class="card border-light mt-2 px-2">
                 <div class="row" style="align-items: center; padding: 0 .5rem;">
                     <div class="col-lg col-lg-auto"><h1 id="main-title" class="display-6">Connecting...</h1>
                     <div id="loader" class="spinner-border text-secondary float-end" role="status">
