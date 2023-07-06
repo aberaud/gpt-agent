@@ -30,7 +30,7 @@ body {
     justify-content: center;
 }
 .content {
-  padding: 1rem;
+  padding: 2rem;
   overflow-y: hidden;
   display: flex;
   overflow-x: auto;
@@ -41,7 +41,7 @@ body {
 }
 @media (max-width: 576px) {
     :root {
-        --agent-width: calc(100% - 1rem);
+        --agent-width: calc(100% - 1.5rem);
     }
 }
 .agent-container {
@@ -49,20 +49,18 @@ body {
     max-width: var(--agent-width);
     min-width: 0;
     width: var(--agent-width);
-    margin-left: .5rem;
-    margin-right: .5rem;
-    overflow: hidden;
+    margin-left: .75rem;
+    margin-right: .75rem;
 }
 .agent {
     width: var(--agent-width);
     min-width: var(--agent-width);
-}
-.agent {
     max-height: 100%;
     white-space: normal;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: .125rem .5rem 1rem rgba(0, 0, 0, 0.25); /*4px 8px 16px gray*/
 }
 .messages {
     flex: 1;
