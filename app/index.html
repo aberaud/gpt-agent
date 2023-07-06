@@ -80,20 +80,21 @@ const getClass = role => {
         default: return ''
     }
 }
-const getLanguage = filename => {
-    switch (filename.split('.').pop()) {
-        case 'py': return 'python'
-        case 'sh': return 'bash'
-        default: return ''
-    }
+const defaultArgs = args => {
+    if (typeof(args) == 'object')
+        return Object.entries(args).map(([key, value]) => `${key}=${value}`).join('<br/>')
+    else if (typeof(args) == 'string')
+        return args
+    else
+        return ''
 }
 const default_command = {
     icon: msg => 'bi-chat-left-dots-fill',
     message: msg => {
         if (typeof(msg) == 'string') {
             return `<pre>${escapeHtml(msg)}</pre>`
-        } else if (msg.command) {
-            return `<b>${msg.command} ${Object.values(msg.arguments).join(' ')}</b><pre>${escapeHtml(msg.content)}</pre>`
+        } else if (msg.name) {
+            return `<b>${msg.name}</b><br/><pre>${escapeHtmlFull(defaultArgs(msg.arguments))}</pre>`
         } else {
             return escapeHtmlFull(msg.content)
         }
@@ -113,14 +114,14 @@ const commands = {
     WRITE: {
         icon: msg => 'bi-pencil-fill',
         message: msg => {
-            const lang = getLanguage(msg.arguments.filename)
+            const lang = msg.arguments.filename.split('.').pop()
             if (lang) {
                 return `<b>${msg.arguments.filename}</b><pre><code class="language-${lang}">${hljs.highlight(msg.arguments.content, {language: lang}).value}</code></pre>`
             } else {
-                return `<b>${msg.arguments.filename}</b><pre>${escapeHtml(msg.content)}</pre>`
+                return `<b>${msg.arguments.filename}</b><pre>${escapeHtml(msg.arguments.content)}</pre>`
             }
         },
-        result: msg => `<pre>${escapeHtml(msg.content)}</pre>`
+        result: msg => escapeHtmlFull(msg.content)
     },
     RUN: {
         icon: msg => 'bi-terminal-fill',
