@@ -4,7 +4,7 @@ import os
 from app.commands import commands
 
 purpose_agent = """Analyze the goal, define a plan to achieve it, and delegate the required actions to other agents or perform them yourself, until the goal is achieved.
-Always check the result of your work and the work of other agents.
+Always only use functions, and without introduction or explaination. Use functions directly and without any other text.
 What you say will not be preserved, only the content provided to the 'COMPLETE' function will be used to judge or use your work.
 Always use the 'COMPLETE' function directly to report completion of a task."""
 
