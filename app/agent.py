@@ -10,10 +10,11 @@ from app.web_server import WebSession
 from app.prompts import getSystemPrompt, getCommands
 
 class Agent:
-    def __init__(self, args, context, web_server: WebSession, prompt: str | list[str] = None, name: str = "main", role : str = 'agent', parent: Optional['Agent']=None):
+    def __init__(self, args, context, name: str = "main", role : str = 'agent', prompt: str | list[str] = None, parent: Optional['Agent']=None, web_server: WebSession = None):
         self.args = args
         self.commands = {command['name']: command for command in getCommands(role)}
         self.name = name
+        self.role = role
         self.web_server = web_server
         self.parent = parent
         self.context = context
@@ -30,6 +31,8 @@ class Agent:
                 await self.add_message(p, role="system")
         elif self.prompt:
             await self.add_message(self.prompt, role="system")
+        if self.web_server:
+            await self.web_server.set_agent_properties(self.name, self.role, self.chat_session.model, list(self.commands.keys()), self.parent.name if self.parent else None)
 
     @staticmethod
     def parse_message(message):
@@ -130,7 +133,6 @@ class Agent:
         await self.add_message(json.dumps({ reply_type: user_input }))
 
     async def handle_agent_command(self, command_name: str, args):
-        #command = self.commands[command_name]
         command = self.commands[command_name.upper()]
         # print(f"Handling command {command} with args {args}")
         result = await command["callback"](self, args)
@@ -138,15 +140,10 @@ class Agent:
         if result is not None:
             await self.add_message(result, "function", name=command_name)
 
-    def convert_history_for_subagent(self):
-        agent_history = self.chat_session.messages[1:-1]
-        #agent_history = [self.convert_message_for_subagent(h) for h in agent_history]
-        return [h for h in agent_history if h is not None]
-
     async def handle_agent_assign(self, sub_agent_id, task, messages: list[str]=[], role='worker'):
         sub_agent_id = self.context.new_agent_id(sub_agent_id)
         print(f"[ASSIGN] {sub_agent_id} {task}")
-        sub_agent = Agent(self.args, self.context, web_server=self.web_server, name=sub_agent_id, role=role, parent=self)
+        sub_agent = Agent(self.args, self.context, name=sub_agent_id, role=role, parent=self, web_server=self.web_server)
         self.context.add_agent(sub_agent)
         await sub_agent.init()
         if task:

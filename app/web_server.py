@@ -44,6 +44,17 @@ class WebSession:
         self.state[key] = value
         await self.send_to_client({key: value})
 
+    async def set_agent_properties(self, id, role, model, commands, parent):
+        agent = self.state['agents'].get(id)
+        if agent is None:
+            agent = { 'id': id, 'messages': []}
+        agent['model'] = model
+        agent['role'] = role
+        agent['commands'] = commands
+        agent['parent'] = parent
+        self.state['agents'][id] = agent
+        await self.send_to_client({'agents': self.state['agents']})
+
     async def set_state(self, id, state, usage: dict | None = None):
         self.state['state'] = state
         if usage is not None:

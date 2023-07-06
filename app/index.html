@@ -198,10 +198,9 @@ const messageRow = message => {
         ${(e === message ? display.result(e) : display.message(e)) || ''}
     </li>`
 }
-
 const agentCard = agent => 
     `<div class="card agent${agent.completed ? ' text-bg-secondary' : ''}" id="agent-${agent.id}">
-        <div class="card-header"><h5 class="card-title">${agent.id}</h5></div>
+        <div class="card-header"><h5 class="card-title">${agent.id} <small style="opacity:.5;">${agent.role}</small></h5></div>
         <ul class="messages list-group list-group-flush">
             ${agent.messages.reverse().map(message => messageRow(message)).join('\n')}
         </ul>
@@ -326,7 +325,11 @@ const new_websocket = (dispatch) => {
                     }
                     textMsg.textContent = `Waiting for human input: ${data.id}`
                     const header = card.querySelector('.card-header')
-                    header.innerHTML = `<h5 class="card-title">${data.id}</h5>${inputBox(data.id, data.message)}`
+                    const input = htmlToElement(inputBox(data.id, data.message))
+                    while (header.children.length > 1) {
+                        header.removeChild(header.children[1])
+                    }
+                    header.appendChild(input)
                 } else if (data.state == 'running') {
                     loader.remove()
                     const lastAgent = (agents && agents.length > 0) ? agents[agents.length - 1].id : data.id

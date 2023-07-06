@@ -37,7 +37,7 @@ class AgentRunner:
         os.mkdir(self.path)
         self.session = session
         self.agents: dict[str, Agent] = {}
-        self.main_agent = Agent(args, web_server=session, context=self)
+        self.main_agent = Agent(args, self, web_server=session)
         self.add_agent(self.main_agent)
         print(f"Created agent runner {self.name} in path {self.path}")
     
@@ -51,7 +51,6 @@ class AgentRunner:
             else:
                 await self.main_agent.add_message(json.dumps({ "main_goal": main_goal }))
             await self.main_agent.run()
-            #await self.session.set_state(self.main_agent.name, 'completed', usage=get_total_usage())
         finally:
             os.chdir(init_path)
             # delete the directory if it's empty

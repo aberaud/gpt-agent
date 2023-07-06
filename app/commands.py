@@ -137,12 +137,12 @@ commands = [
             "properties": {
                 "prompt": {
                     "type": "string",
-                    "description": "A detailed, graphic description of the image to generate"
+                    "description": "A detailed, graphic description of the image to generate, in English"
                 },
             },
             "required": ["prompt"],
         },
-        "description": "Generate an image from a prompt",
+        "description": "Generate an image from a prompt. The prompt should be a detailed, graphic description of the image to generate, in English. The resulting image will be displayed to the user instead of the result you will see. Never repeat the url, and don't link to the result.",
         "callback": draw_callback,
     },
     {
