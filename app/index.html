@@ -344,7 +344,7 @@ const new_websocket = (dispatch) => {
                     textMsg.textContent = `Agent running: ${lastAgent}`
                     const card = document.getElementById(`agent-${lastAgent}`)
                     if (card) {
-                        const header = card.querySelector('.card-header')
+                        const header = card.querySelector('.card-title')
                         header.appendChild(loader)
                     }
                 } else if (data.state == 'completed') {
@@ -367,7 +367,7 @@ const new_websocket = (dispatch) => {
             <div class="card mt-2 px-2">
                 <div class="row" style="align-items: center; padding: 0 .5rem;">
                     <div class="col-lg col-lg-auto"><h1 id="main-title" class="display-6">Connecting...</h1>
-                    <div id="loader" class="spinner-border" role="status">
+                    <div id="loader" class="spinner-border text-secondary float-end" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div></div>
                     <div class="col justify-content-end d-flex"><ul class="list-group list-group-flush" style="display: inline-block;">
