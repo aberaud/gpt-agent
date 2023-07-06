@@ -107,9 +107,6 @@ class Agent:
                     raise
                 except CancelledError:
                     raise
-                #except ParseError as e:
-                #    print(f"[ERROR] Couldn't parse agent's message: {response}")
-                #    self.chat_session.add_message(f"PARSE_ERROR\n{e}\nHint: always use the proper syntax `COMMAND arguments` and one of the documented commands. Retry your last message using the appropriate syntax.", "system")
                 except Exception as e:
                     print(f"[ERROR] Couldn't handle agent's message: {response}")
                     traceback.print_exc()

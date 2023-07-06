@@ -70,7 +70,7 @@ body {
     margin: 8px;
 }
     </style>
-    <script>
+    <script>"use strict";
 const getClass = role => {
     switch (role) {
         case 'user': return 'list-group-item-primary'
@@ -106,10 +106,6 @@ const commands = {
     COMPLETE: {
         icon: msg => msg.arguments.status == 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill text-danger',
         message: msg => escapeHtmlFull(msg.arguments.content)
-    },
-    INFO: {
-        icon: msg => 'bi-info-circle-fill',
-        message: msg => msg.content
     },
     WRITE: {
         icon: msg => 'bi-pencil-fill',
@@ -158,31 +154,7 @@ const commands = {
         message: msg => `${escapeHtmlFull(msg.arguments.source)}: <b>${escapeHtmlFull(msg.arguments.id)}</b><br/>${escapeHtmlFull(msg.arguments.request)}`,
         resultIcon: msg => msg.content.status == 'success' ? 'bi-check-circle' : 'bi-x-circle-fill text-danger',
         result: msg => escapeHtmlFull(msg.content.content)
-    },
-    INSTRUCTIONS: {
-        icon: msg => 'bi-journal-check',
-        message: msg => `<pre>${escapeHtml(msg.content)}</pre>`
-    },
-    IDENTITY: {
-        icon: msg => 'bi-journal-check',
-        message: msg => `<b>${escapeHtmlFull(msg.content)}</b>`
-    },
-    USER_INPUT: {
-        icon: msg => 'bi-journal-check',
-        message: msg => `<b>${escapeHtmlFull(msg.content)}</b>`
-    },
-    ENVIRONMENT: {
-        icon: msg => 'bi-info-circle',
-        message: msg => `<pre>${escapeHtml(msg.content)}</pre>`
-    },
-    OUTPUT: {
-        icon: msg => 'bi-info-circle',
-        message: msg => `<pre>${escapeHtml(msg.arguments.content)}</pre>`
-    },
-    PARSE_ERROR: {
-        icon: msg => 'bi-exclamation-circle-fill',
-        message: msg => `<b>Parsing error</b><pre>${escapeHtml(msg.content)}</pre>`
-    },
+    }
 }
 const formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -223,10 +195,8 @@ const addResult = (container, agent) => {
     card.id = `agent-${agent.id}-container`
     if (agent.completed)
         card.classList.add('agent-complete')
-    const ac = $(agentCard(agent))
-    card.appendChild(ac)
+    card.innerHTML = agentCard(agent)
     container.insertBefore(card, container.firstChild)
-    w = card.offsetWidth
     card.classList.add('agent-container')
     card.animate([{ opacity: 0, maxWidth: 0 }, {}], animParams)
     return card
@@ -373,10 +343,10 @@ const new_websocket = (dispatch) => {
         <div id="searchbar" class="container">
             <div class="card border-light mt-2 px-2">
                 <div class="row" style="align-items: center; padding: 0 .5rem;">
-                    <div class="col-lg col-lg-auto"><h1 id="main-title" class="display-6">Connecting...</h1>
+                    <div class="col-lg col-lg-auto"><h1 id="main-title" class="display-6">Connecting...</h1></div>
                     <div id="loader" class="spinner-border text-secondary float-end" role="status">
                         <span class="visually-hidden">Loading...</span>
-                    </div></div>
+                    </div>
                     <div class="col justify-content-end d-flex"><ul class="list-group list-group-flush" style="display: inline-block;">
                         <li id="usage-tokens" class="list-group-item text-body-secondary">–</li>
                         <li id="usage-dollars" class="list-group-item text-body-secondary">–</li>

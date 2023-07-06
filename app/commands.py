@@ -10,9 +10,6 @@ from app.chat import generate_image
 class AgentParseError(Exception):
     pass
 
-async def info_callback(agent, args):
-    print(f"INFO: {args}")
-
 async def search_callback(agent, args):
     print(f"QUERY: {args}")
     source = args.get('source')
