@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from bs4 import BeautifulSoup
 
-from app.scrape import scrapeText
+from .scrape import scrapeText
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GOOGLE_SEARCH_ID = os.getenv("GOOGLE_SEARCH_ID")

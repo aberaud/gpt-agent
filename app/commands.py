@@ -3,9 +3,9 @@ import asyncio
 import json
 import subprocess
 
-from app.search import search, get_wikipedia_data
-from app.scrape import scrapeText
-from app.chat import generate_image
+from .search import search, get_wikipedia_data
+from .scrape import scrapeText
+from .chat import generate_image
 
 class AgentParseError(Exception):
     pass

@@ -4,7 +4,7 @@ import os
 import unittest
 import aiounittest
 
-from app.agent_runner import AgentRunner
+from .agent_runner import AgentRunner
 
 class dotdict(dict):
   """dot.notation access to dictionary attributes"""
@@ -30,13 +30,13 @@ class TestAgent(aiounittest.AsyncTestCase):
             self.assertEqual(parsed['content'], expected)
 
     async def test_hello_world(self):
-        args = dotdict({'model': 'gpt-3.5-turbo-16k-0613'})
+        args = dotdict({'model': 'gpt-4o'})
         context = AgentRunner(args)
         await context.run("complete with message 'hello world'")
         self.check_complete(context, 'hello world')
     
     async def test_create_directory(self):
-        args = dotdict({'model': 'gpt-3.5-turbo-16k-0613'})
+        args = dotdict({'model': 'gpt-4o'})
         context = AgentRunner(args)
         await context.run("create empty directory 'test'")
         self.check_complete(context)
@@ -47,7 +47,7 @@ class TestAgent(aiounittest.AsyncTestCase):
         os.rmdir(context.path)
 
     async def test_simple_script(self):
-        args = dotdict({'model': 'gpt-3.5-turbo-16k-0613'})
+        args = dotdict({'model': 'gpt-4o'})
         context = AgentRunner(args)
         await context.run("create a simple python script 'test.py' that just prints 'hello world'")
         self.check_complete(context)

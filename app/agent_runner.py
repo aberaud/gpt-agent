@@ -6,9 +6,9 @@ import traceback
 import uuid
 from asyncio import CancelledError, Queue
 
-from app.agent import Agent
-from app.chat import get_total_usage, get_model_list
-from app.web_server import WebServer, WebSession
+from .agent import Agent
+from .chat import get_total_usage, get_model_list
+from .web_server import WebServer, WebSession
 
 async def agent_worker(task_queue: Queue):
     while True:
@@ -102,6 +102,6 @@ async def main(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Start the Argent server.")
-    parser.add_argument("-m", "--model", default="gpt-3.5-turbo-16k-0613", help="Specify the default model to use.")
+    parser.add_argument("-m", "--model", default="gpt-4o", help="Specify the default model to use.")
     args = parser.parse_args()
     asyncio.run(main(args))

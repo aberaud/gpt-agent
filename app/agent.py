@@ -3,11 +3,12 @@ import json
 import traceback
 from typing import Optional
 from asyncio import CancelledError
+from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCall
 
-from app.chat import ChatSession, get_total_usage
-from app.commands import AgentParseError
-from app.web_server import WebSession
-from app.prompts import getSystemPrompt, getCommands
+from .chat import ChatSession, get_total_usage
+from .commands import AgentParseError
+from .web_server import WebSession
+from .prompts import getSystemPrompt, getCommands
 
 class Agent:
     def __init__(self, args, context, name: str = "main", role : str = 'agent', prompt: str | list[str] = None, parent: Optional['Agent']=None, web_server: WebSession = None):
@@ -64,8 +65,42 @@ class Agent:
                 'content': content
             }
         return message
+    
+    """     @staticmethod
+    def parse_message(message: ChatCompletionMessage):
+        print(message)
+        function_call = message.get("function_call")#message.tool_calls# get("function_call")
+        role = message.get("role")#.message.role#.get("role")
+        if function_call:
+            function = function_call[0].function
+            arguments = function.get("arguments")#.arguments#.get("arguments")
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                print(f"[WARN] Couldn't parse arguments: {arguments}")
+            return {
+                'role': role,
+                'content': message.content,
+                'function_call': {
+                    'name': function.name,
+                    'arguments': arguments
+                }
+            }
+        if role == 'function':
+            content = message.content#.get("content")
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                pass
+            return {
+                'role': role,
+                #'name': message.get('name'),
+                'content': content
+            }
+        return message
+    """
 
-    async def send_new_message(self, message, status='running'):
+    async def send_new_message(self, message: ChatCompletionMessage, status='running'):
         try:
             if self.web_server:
                 await self.web_server.add_message(self.name, Agent.parse_message(message), usage=get_total_usage())
@@ -183,6 +218,6 @@ async def main(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Start the Argent server.")
-    parser.add_argument("-m", "--model", default="gpt-3.5-turbo-16k-0613", help="Specify the default model to use.")
+    parser.add_argument("-m", "--model", default="gpt-4o", help="Specify the default model to use.")
     args = parser.parse_args()
     asyncio.run(main(args))
